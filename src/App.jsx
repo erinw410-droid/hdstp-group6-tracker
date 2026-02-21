@@ -49,7 +49,7 @@ async function initRow(data) {
 const MEMBERS = [
   "Coppola, Quentin",
   "Garbarine, Ian",
-  "Tanifum, Eric A.",
+  "Tanifum, Eric",
   "Ng, Crystal",
   "Torres, Jahleel",
   "Williams, Erin",
@@ -236,26 +236,45 @@ function SingleSelect({ options, value, onChange, colorMap, disabled, placeholde
 }
 
 // ─── Goal Table ───────────────────────────────────────────────────
+const taStyle = {width:"100%",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"5px 7px",fontSize:13,resize:"vertical",fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color 0.12s"};
+
+function GoalTH({children,w}) {
+  return <th style={{padding:"9px 8px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.9)",background:"rgba(0,0,0,0.18)",textAlign:"left",letterSpacing:"0.05em",textTransform:"uppercase",whiteSpace:"nowrap",width:w}}>{children}</th>;
+}
+
+function GoalRow({ row, dimmed, accentBg, onUpd, onDel }) {
+  const bg = dimmed ? "#f3f4f6" : accentBg;
+  return (
+    <tr style={{background:bg,opacity:dimmed?0.65:1}}>
+      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle"}}>
+        {dimmed
+          ? <span style={{fontSize:13,color:"#6b7280",textDecoration:"line-through",display:"block",padding:"4px 0"}}>{row.description||"—"}</span>
+          : <textarea value={row.description} onChange={e=>onUpd(row.id,"description",e.target.value)} placeholder="Describe the goal or task…" rows={2} style={taStyle} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
+        }
+      </td>
+      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:210}}><MultiSelect options={MEMBERS} value={row.assigned} onChange={v=>onUpd(row.id,"assigned",v)} disabled={dimmed}/></td>
+      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:165}}><SingleSelect options={CATEGORIES} value={row.category} onChange={v=>onUpd(row.id,"category",v)} disabled={dimmed}/></td>
+      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:105}}><SingleSelect options={PRIORITIES} value={row.priority} onChange={v=>onUpd(row.id,"priority",v)} colorMap={PRIORITY_COLORS} disabled={dimmed}/></td>
+      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:125}}><SingleSelect options={STATUSES} value={row.status} onChange={v=>onUpd(row.id,"status",v)} colorMap={STATUS_COLORS}/></td>
+      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:185}}>
+        {dimmed
+          ? <span style={{fontSize:12,color:"#9ca3af"}}>{row.notes||"—"}</span>
+          : <textarea value={row.notes} onChange={e=>onUpd(row.id,"notes",e.target.value)} placeholder="Notes…" rows={2} style={taStyle} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
+        }
+      </td>
+      <td style={{padding:"6px 4px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:28,textAlign:"center"}}>
+        <button onClick={()=>onDel(row.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#d1d5db",fontSize:15,lineHeight:1,padding:3,borderRadius:4,transition:"color 0.12s"}} onMouseEnter={e=>e.currentTarget.style.color="#ef4444"} onMouseLeave={e=>e.currentTarget.style.color="#d1d5db"}>✕</button>
+      </td>
+    </tr>
+  );
+}
+
 function GoalTable({ title, titleBg, accentBg, rows, setRows }) {
   function upd(id,field,val) { setRows(p=>p.map(r=>r.id===id?{...r,[field]:val}:r)); }
   function del(id) { setRows(p=>p.filter(r=>r.id!==id)); }
   function add() { setRows(p=>[...p,emptyRow()]); }
   const active=rows.filter(r=>r.status!=="Complete");
   const completed=rows.filter(r=>r.status==="Complete");
-  const TH=({children,w})=>(<th style={{padding:"9px 8px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.9)",background:"rgba(0,0,0,0.18)",textAlign:"left",letterSpacing:"0.05em",textTransform:"uppercase",whiteSpace:"nowrap",width:w}}>{children}</th>);
-  const Row=({row,dimmed})=>{
-    const bg=dimmed?"#f3f4f6":accentBg;
-    const ta={width:"100%",border:"1.5px solid #cbd5e1",borderRadius:6,padding:"5px 7px",fontSize:13,resize:"vertical",fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color 0.12s"};
-    return (<tr style={{background:bg,opacity:dimmed?0.65:1}}>
-      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle"}}>{dimmed?<span style={{fontSize:13,color:"#6b7280",textDecoration:"line-through",display:"block",padding:"4px 0"}}>{row.description||"—"}</span>:<textarea value={row.description} onChange={e=>upd(row.id,"description",e.target.value)} placeholder="Describe the goal or task…" rows={2} style={ta} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>}</td>
-      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:210}}><MultiSelect options={MEMBERS} value={row.assigned} onChange={v=>upd(row.id,"assigned",v)} disabled={dimmed}/></td>
-      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:165}}><SingleSelect options={CATEGORIES} value={row.category} onChange={v=>upd(row.id,"category",v)} disabled={dimmed}/></td>
-      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:105}}><SingleSelect options={PRIORITIES} value={row.priority} onChange={v=>upd(row.id,"priority",v)} colorMap={PRIORITY_COLORS} disabled={dimmed}/></td>
-      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:125}}><SingleSelect options={STATUSES} value={row.status} onChange={v=>upd(row.id,"status",v)} colorMap={STATUS_COLORS}/></td>
-      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:185}}>{dimmed?<span style={{fontSize:12,color:"#9ca3af"}}>{row.notes||"—"}</span>:<textarea value={row.notes} onChange={e=>upd(row.id,"notes",e.target.value)} placeholder="Notes…" rows={2} style={ta} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>}</td>
-      <td style={{padding:"6px 4px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:28,textAlign:"center"}}><button onClick={()=>del(row.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#d1d5db",fontSize:15,lineHeight:1,padding:3,borderRadius:4,transition:"color 0.12s"}} onMouseEnter={e=>e.currentTarget.style.color="#ef4444"} onMouseLeave={e=>e.currentTarget.style.color="#d1d5db"}>✕</button></td>
-    </tr>);
-  };
   return (
     <div style={{marginBottom:36}}>
       <div style={{background:titleBg,borderRadius:"10px 10px 0 0",padding:"12px 20px",display:"flex",alignItems:"center",gap:12}}>
@@ -265,11 +284,11 @@ function GoalTable({ title, titleBg, accentBg, rows, setRows }) {
       </div>
       <div style={{overflowX:"auto",border:"1.5px solid #e2e8f0",borderTop:"none",borderRadius:"0 0 10px 10px"}}>
         <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
-          <thead><tr style={{background:titleBg}}><TH>Goal / Task Description</TH><TH w={210}>Assigned</TH><TH w={165}>Category</TH><TH w={105}>Priority</TH><TH w={125}>Status</TH><TH w={185}>Notes</TH><TH w={28}></TH></tr></thead>
+          <thead><tr style={{background:titleBg}}><GoalTH>Goal / Task Description</GoalTH><GoalTH w={210}>Assigned</GoalTH><GoalTH w={165}>Category</GoalTH><GoalTH w={105}>Priority</GoalTH><GoalTH w={125}>Status</GoalTH><GoalTH w={185}>Notes</GoalTH><GoalTH w={28}></GoalTH></tr></thead>
           <tbody>
-            {active.map(row=><Row key={row.id} row={row} dimmed={false}/>)}
+            {active.map(row=><GoalRow key={row.id} row={row} dimmed={false} accentBg={accentBg} onUpd={upd} onDel={del}/>)}
             {active.length===0&&<tr><td colSpan={7} style={{padding:"20px",textAlign:"center",color:"#9ca3af",fontSize:13,fontStyle:"italic"}}>{completed.length>0?"All tasks complete! 🎉":"No tasks yet — add one below."}</td></tr>}
-            {completed.length>0&&<><tr><td colSpan={7} style={{padding:"8px 14px",background:"#f9fafb",borderTop:"2px dashed #e5e7eb"}}><span style={{fontSize:10,fontWeight:700,color:"#9ca3af",letterSpacing:"0.07em",textTransform:"uppercase"}}>✓ Completed ({completed.length})</span></td></tr>{completed.map(row=><Row key={row.id} row={row} dimmed={true}/>)}</>}
+            {completed.length>0&&<><tr><td colSpan={7} style={{padding:"8px 14px",background:"#f9fafb",borderTop:"2px dashed #e5e7eb"}}><span style={{fontSize:10,fontWeight:700,color:"#9ca3af",letterSpacing:"0.07em",textTransform:"uppercase"}}>✓ Completed ({completed.length})</span></td></tr>{completed.map(row=><GoalRow key={row.id} row={row} dimmed={true} accentBg={accentBg} onUpd={upd} onDel={del}/>)}</>}
           </tbody>
         </table>
       </div>
@@ -511,7 +530,7 @@ export default function App() {
         console.error(e);
         setSaveStatus("error");
       }
-    }, 800);
+    }, 300);
   }, [weeks, activeWeekId, dbStatus]);
 
   // ── Poll for changes from other users every 15s ──
@@ -656,6 +675,23 @@ export default function App() {
                 <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#1F3864",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Status Guide</span></div>{STATUSES.map((s,i)=>{const c=STATUS_COLORS[s];return(<div key={s} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{s}</span></div>);})}</div>
                 <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#1F3864",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Priority Guide</span></div>{PRIORITIES.map((p,i)=>{const c=PRIORITY_COLORS[p];return(<div key={p} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{p}</span></div>);})}</div>
               </div>
+              <div style={{gridColumn:"1 / -1",background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
+                <div style={{background:"#0f766e",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{color:"#fff",fontWeight:800,fontSize:15}}>📁 Shared Resources</span>
+                </div>
+                <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:14}}>
+                  <div style={{width:44,height:44,borderRadius:10,background:"#e6f4ea",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>📂</div>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:700,color:"#1F3864",marginBottom:3}}>Group 6 Google Drive</div>
+                    <div style={{fontSize:12,color:"#64748b",marginBottom:6}}>Shared folder for uploads, documents, and resources</div>
+                    <a href="https://drive.google.com/drive/folders/18dckwmhR_1hFmdJpBiRGep7Ycqgb75_C?usp=sharing" target="_blank" rel="noopener noreferrer"
+                      style={{display:"inline-flex",alignItems:"center",gap:6,background:"#0f766e",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:600,textDecoration:"none"}}>
+                      Open Drive →
+                    </a>
+                  </div>
+                </div>
+              </div>
+
               <div style={{gridColumn:"1 / -1",background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#2E75B6",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>CRediT Contribution Categories</span></div><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{background:"#f1f5f9"}}><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase",width:220}}>Category</th><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase"}}>Definition</th></tr></thead><tbody>{CATEGORIES.map((cat,i)=>(<tr key={cat} style={{background:i%2===0?"#f8fafc":"#fff"}}><td style={{padding:"12px 16px",fontSize:13,fontWeight:700,color:"#1F3864",borderBottom:"1px solid #f1f5f9",verticalAlign:"top"}}>{cat}</td><td style={{padding:"12px 16px",fontSize:13,color:"#475569",borderBottom:"1px solid #f1f5f9",lineHeight:1.6}}>{CAT_DESC[cat]}</td></tr>))}</tbody></table></div>
             </div>
           )}
