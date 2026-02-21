@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 // ─── Supabase config ──────────────────────────────────────────────
 const SUPABASE_URL = "https://mmgdnccfjfexodwzojmz.supabase.co";
@@ -302,6 +303,53 @@ function useOutsideClose(cb) {
   return ref;
 }
 
+// ─── Portal menu positioning (ensures dropdown overlays everything) ─────────
+function useMenuPos(open, anchorRef) {
+  const [pos, setPos] = useState(null);
+  const update = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({
+      top: r.bottom + 3,
+      left: r.left,
+      width: r.width,
+    });
+  }, [anchorRef]);
+
+  useEffect(() => {
+    if (!open) return;
+    update();
+    const onScroll = () => update();
+    const onResize = () => update();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, update]);
+
+  return pos;
+}
+
+function PortalMenu({ open, anchorRef, children }) {
+  const pos = useMenuPos(open, anchorRef);
+  if (!open || !pos) return null;
+  return createPortal(
+    <div style={{
+      position: "fixed",
+      top: pos.top,
+      left: pos.left,
+      width: pos.width,
+      zIndex: 2147483647,
+    }} onMouseDown={(e)=>e.stopPropagation()} onClick={(e)=>e.stopPropagation()}>
+      {children}
+    </div>,
+    document.body
+  );
+}
+
 // ─── Style helpers ────────────────────────────────────────────────
 const card = (extra={}) => ({ background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:10, overflow:"hidden", ...extra });
 const sectionHead = (bg) => ({ background:bg, padding:"12px 18px", display:"flex", alignItems:"center", gap:10 });
@@ -319,6 +367,7 @@ function TA({ value, onChange, placeholder, rows=3 }) {
 function MultiSelect({ options, value, onChange, disabled }) {
   const [open,setOpen] = useState(false);
   const ref = useOutsideClose(()=>setOpen(false));
+  const anchorRef = useRef(null);
   function toggle(opt) {
     if(disabled) return;
     const canonOpt = normalizeMemberName(opt);
@@ -330,7 +379,7 @@ function MultiSelect({ options, value, onChange, disabled }) {
   }
   return (
     <div ref={ref} style={{position:"relative",width:"100%"}}>
-      <div onClick={()=>!disabled&&setOpen(o=>!o)} style={{minHeight:34,padding:"3px 24px 3px 6px",border:"1.5px solid",borderColor:open?"#2E75B6":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:disabled?"#f8fafc":"#fff",position:"relative",display:"flex",flexWrap:"wrap",gap:3,alignItems:"center",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
+      <div ref={anchorRef} onClick={()=>!disabled&&setOpen(o=>!o)} style={{minHeight:34,padding:"3px 24px 3px 6px",border:"1.5px solid",borderColor:open?"#2E75B6":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:disabled?"#f8fafc":"#fff",position:"relative",display:"flex",flexWrap:"wrap",gap:3,alignItems:"center",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
         {value.length===0 ? <span style={{color:"#94a3b8",fontSize:12}}>Select members…</span>
           : value.map(v=>{
               const canon = normalizeMemberName(v);
@@ -348,7 +397,8 @@ function MultiSelect({ options, value, onChange, disabled }) {
             })}
         {!disabled&&<span style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",color:"#94a3b8",fontSize:9,pointerEvents:"none"}}>{open?"▲":"▼"}</span>}
       </div>
-      {open&&(<div style={{position:"absolute",top:"calc(100% + 3px)",left:0,right:0,zIndex:9999,background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
+      <PortalMenu open={open} anchorRef={anchorRef}>
+        <div style={{background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
         {options.map((opt,i)=>{
           const canonOpt = normalizeMemberName(opt);
           const sel = value.map(normalizeMemberName).includes(canonOpt);
@@ -362,7 +412,9 @@ function MultiSelect({ options, value, onChange, disabled }) {
               <span style={{background:sel?col.bg:"transparent",color:sel?col.text:"#374151",borderRadius:4,padding:sel?"1px 7px":0,fontSize:13,fontWeight:sel?600:400}}>{name}</span>
             </div>
           );
-        })}</div>)}
+        })}
+        </div>
+      </PortalMenu>
     </div>
   );
 }
@@ -371,15 +423,19 @@ function MultiSelect({ options, value, onChange, disabled }) {
 function SingleSelect({ options, value, onChange, colorMap, disabled, placeholder="Select…", allowClear=false }) {
   const [open,setOpen] = useState(false);
   const ref = useOutsideClose(()=>setOpen(false));
+  const anchorRef = useRef(null);
   const col = colorMap?.[value];
   return (
     <div ref={ref} style={{position:"relative",width:"100%"}}>
-      <div onClick={()=>!disabled&&setOpen(o=>!o)} style={{height:34,padding:"0 24px 0 9px",border:"1.5px solid",borderColor:open?"#2E75B6":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:col?.bg||(disabled?"#f8fafc":"#fff"),display:"flex",alignItems:"center",position:"relative",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
+      <div ref={anchorRef} onClick={()=>!disabled&&setOpen(o=>!o)} style={{height:34,padding:"0 24px 0 9px",border:"1.5px solid",borderColor:open?"#2E75B6":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:col?.bg||(disabled?"#f8fafc":"#fff"),display:"flex",alignItems:"center",position:"relative",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
         <span style={{fontSize:12,fontWeight:600,color:col?.text||"#374151",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{value||<span style={{color:"#94a3b8",fontWeight:400}}>{placeholder}</span>}</span>
         {!disabled&&<span style={{position:"absolute",right:6,color:"#94a3b8",fontSize:9}}>{open?"▲":"▼"}</span>}
       </div>
-      {open&&(<div style={{position:"absolute",top:"calc(100% + 3px)",left:0,right:0,zIndex:9999,background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
-        {options.map(opt=>{const c=colorMap?.[opt];const sel=value===opt;return(<div key={opt} onClick={()=>{ const next = (allowClear && value===opt) ? "" : opt; onChange(next); setOpen(false); }} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>{sel&&<span style={{color:"#2E75B6",fontSize:10}}>✓</span>}<span style={{background:c?.bg||"transparent",color:c?.text||"#374151",borderRadius:4,padding:c?"2px 8px":0,fontSize:13,fontWeight:sel?600:400}}>{opt}</span></div>);})}</div>)}
+      <PortalMenu open={open} anchorRef={anchorRef}>
+        <div style={{background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
+          {options.map(opt=>{const c=colorMap?.[opt];const sel=value===opt;return(<div key={opt} onClick={()=>{ const next = (allowClear && value===opt) ? "" : opt; onChange(next); setOpen(false); }} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>{sel&&<span style={{color:"#2E75B6",fontSize:10}}>✓</span>}<span style={{background:c?.bg||"transparent",color:c?.text||"#374151",borderRadius:4,padding:c?"2px 8px":0,fontSize:13,fontWeight:sel?600:400}}>{opt}</span></div>);})}
+        </div>
+      </PortalMenu>
     </div>
   );
 }
