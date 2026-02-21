@@ -237,7 +237,6 @@ const AGENDA_CATEGORIES = [
   "Methods & Protocol Discussion",
   "Writing & Publication Updates",
   "Mentor / Advisor Update",
-  "Coding Demo",
   "Presentation",
   "Open Discussion",
   "Questions, Concerns & Announcements",
@@ -727,6 +726,13 @@ export default function App() {
   const [activeWeekId,setActiveWeekId] = useState(()=>weeks[0].id);
   const [leaderOverrides,setLeaderOverrides] = useState({});
 
+  // Ensure portal-rendered dropdowns match app typography
+  useEffect(()=>{
+    try {
+      document.body.style.fontFamily = "Helvetica, Arial, sans-serif";
+    } catch(e) {}
+  }, []);
+
   const activeWeek = weeks.find(w=>w.id===activeWeekId)||weeks[weeks.length-1];
   const isLatest   = activeWeek.id===weeks[weeks.length-1].id;
 
@@ -862,7 +868,7 @@ export default function App() {
   }[saveStatus];
 
   return (
-    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans','Segoe UI',system-ui,sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"Helvetica, Arial, sans-serif"}}>
       {showModal&&<NewWeekModal currentWeek={activeWeek} onConfirm={handleCreate} onCancel={()=>setShowModal(false)}/>}
 
       {/* ── Header ── */}
