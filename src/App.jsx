@@ -55,6 +55,27 @@ const MEMBERS = [
   "Williams, Erin",
 ];
 
+// Accept legacy/full-name formats (e.g., "Quentin Coppola") and normalize to "Last, First".
+const MEMBER_CANON = (() => {
+  const m = new Map();
+  for (const lf of MEMBERS) {
+    const [lastRaw, firstRaw] = String(lf).split(",");
+    const last = (lastRaw || "").trim();
+    const first = (firstRaw || "").trim();
+    const full = `${first} ${last}`.trim();
+    if (full) m.set(full, lf);
+  }
+  return m;
+})();
+
+function normalizeMemberName(v) {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  if (MEMBERS.includes(s)) return s;
+  if (MEMBER_CANON.has(s)) return MEMBER_CANON.get(s);
+  return s; // keep unknown values but handle them safely in UI
+}
+
 const CATEGORIES = [
   "Conceptualization","Methodology","Software","Validation",
   "Formal Analysis","Investigation","Data Curation",
@@ -125,7 +146,9 @@ function normalizeMeetingNotes(mnRaw) {
   return {
     ...base,
     ...mn,
-    attendees: Array.isArray(mn.attendees) ? mn.attendees : [],
+    attendees: Array.isArray(mn.attendees)
+      ? mn.attendees.map(normalizeMemberName).filter(Boolean)
+      : [],
     agendaItems: Array.isArray(mn.agendaItems) ? mn.agendaItems : [],
     actionItems: Array.isArray(mn.actionItems) ? mn.actionItems : [],
     decisions: Array.isArray(mn.decisions) ? mn.decisions : [],
@@ -152,6 +175,15 @@ function normalizeAndMigrateState(data) {
   // Migration: older saved data started at 2026-02-15. Shift forward one week.
   if (weeks.length > 0 && isoDate(weeks[0].date) === "2026-02-15") {
     weeks = weeks.map(w => ({ ...w, date: addDaysISO(w.date, 7) }));
+
+    // If shifting created duplicate week-dates, keep the first occurrence.
+    const seen = new Set();
+    weeks = weeks.filter(w => {
+      const d = isoDate(w.date);
+      if (seen.has(d)) return false;
+      seen.add(d);
+      return true;
+    });
   }
 
   if (weeks.length === 0) {
@@ -174,6 +206,13 @@ function getMeetingDates() {
   return dates;
 }
 const MEETING_DATES   = getMeetingDates();
+const MEETING_RANGE_LABEL = (() => {
+  if (!MEETING_DATES || MEETING_DATES.length === 0) return "";
+  const first = MEETING_DATES[0];
+  const last  = MEETING_DATES[MEETING_DATES.length - 1];
+  const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${fmt(first)} - ${fmt(last)}, ${last.getFullYear()}`;
+})();
 const LEADERS_ASC     = [...MEMBERS].sort((a,b)=>a.split(",")[0].localeCompare(b.split(",")[0]));
 const NOTETAKERS_DESC = [...MEMBERS].sort((a,b)=>b.split(",")[0].localeCompare(a.split(",")[0]));
 
@@ -274,17 +313,48 @@ function MultiSelect({ options, value, onChange, disabled }) {
   const ref = useOutsideClose(()=>setOpen(false));
   function toggle(opt) {
     if(disabled) return;
-    onChange(value.includes(opt)?value.filter(v=>v!==opt):[...value,opt]);
+    const canonOpt = normalizeMemberName(opt);
+    const canonVals = Array.isArray(value) ? value.map(normalizeMemberName).filter(Boolean) : [];
+    const next = canonVals.includes(canonOpt)
+      ? canonVals.filter(v=>v!==canonOpt)
+      : [...canonVals, canonOpt];
+    onChange(next);
   }
   return (
     <div ref={ref} style={{position:"relative",width:"100%"}}>
       <div onClick={()=>!disabled&&setOpen(o=>!o)} style={{minHeight:34,padding:"3px 24px 3px 6px",border:"1.5px solid",borderColor:open?"#2E75B6":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:disabled?"#f8fafc":"#fff",position:"relative",display:"flex",flexWrap:"wrap",gap:3,alignItems:"center",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
         {value.length===0 ? <span style={{color:"#94a3b8",fontSize:12}}>Select members…</span>
-          : value.map(v=>{const mi=MEMBERS.indexOf(v);const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const name=v.split(",")[1]?.trim()+" "+v.split(",")[0]?.trim();return(<span key={v} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 5px",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:3}}>{name}{!disabled&&<span onClick={e=>{e.stopPropagation();toggle(v);}} style={{cursor:"pointer",fontWeight:900,fontSize:12}}>×</span>}</span>);})}
+          : value.map(v=>{
+              const canon = normalizeMemberName(v);
+              const mi = MEMBERS.indexOf(canon);
+              const col = MEMBER_COLORS[(mi >= 0 ? mi : 0) % MEMBER_COLORS.length];
+              const name = canon.includes(",")
+                ? (canon.split(",")[1]?.trim()+" "+canon.split(",")[0]?.trim()).trim()
+                : canon;
+              return(
+                <span key={v} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 5px",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
+                  {name}
+                  {!disabled&&<span onClick={e=>{e.stopPropagation();toggle(canon);}} style={{cursor:"pointer",fontWeight:900,fontSize:12}}>×</span>}
+                </span>
+              );
+            })}
         {!disabled&&<span style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",color:"#94a3b8",fontSize:9,pointerEvents:"none"}}>{open?"▲":"▼"}</span>}
       </div>
       {open&&(<div style={{position:"absolute",top:"calc(100% + 3px)",left:0,right:0,zIndex:9999,background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
-        {options.map((opt,i)=>{const sel=value.includes(opt);const col=MEMBER_COLORS[i%MEMBER_COLORS.length];const name=opt.split(",")[1]?.trim()+" "+opt.split(",")[0]?.trim();return(<div key={opt} onClick={()=>toggle(opt)} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:9,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background=sel?"#e6f0ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}><div style={{width:15,height:15,borderRadius:3,border:"1.5px solid",borderColor:sel?"#2E75B6":"#d1d5db",background:sel?"#2E75B6":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}</div><span style={{background:sel?col.bg:"transparent",color:sel?col.text:"#374151",borderRadius:4,padding:sel?"1px 7px":0,fontSize:13,fontWeight:sel?600:400}}>{name}</span></div>);})}</div>)}
+        {options.map((opt,i)=>{
+          const canonOpt = normalizeMemberName(opt);
+          const sel = value.map(normalizeMemberName).includes(canonOpt);
+          const col = MEMBER_COLORS[i%MEMBER_COLORS.length];
+          const name = canonOpt.includes(",")
+            ? (canonOpt.split(",")[1]?.trim()+" "+canonOpt.split(",")[0]?.trim()).trim()
+            : canonOpt;
+          return(
+            <div key={opt} onClick={()=>toggle(canonOpt)} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:9,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background=sel?"#e6f0ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>
+              <div style={{width:15,height:15,borderRadius:3,border:"1.5px solid",borderColor:sel?"#2E75B6":"#d1d5db",background:sel?"#2E75B6":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}</div>
+              <span style={{background:sel?col.bg:"transparent",color:sel?col.text:"#374151",borderRadius:4,padding:sel?"1px 7px":0,fontSize:13,fontWeight:sel?600:400}}>{name}</span>
+            </div>
+          );
+        })}</div>)}
     </div>
   );
 }
@@ -682,6 +752,31 @@ export default function App() {
     setShowModal(false);
   }
 
+
+  function handleDeleteWeek(weekId) {
+    // Prevent deleting the last remaining week
+    if (!weekId) return;
+    if (weeks.length <= 1) {
+      alert("You must keep at least one week.");
+      return;
+    }
+    const week = weeks.find(w => w.id === weekId);
+    const label = week ? `Week of ${formatDate(week.date)}` : "this week";
+    const ok = window.confirm(`Delete ${label}? This cannot be undone.`);
+    if (!ok) return;
+
+    setWeeks(prev => {
+      const next = prev.filter(w => w.id !== weekId);
+      // If we deleted the active week, move view to the latest remaining week
+      if (activeWeekIdRef.current === weekId) {
+        const fallback = next[next.length - 1];
+        if (fallback) setActiveWeekId(fallback.id);
+      }
+      return next;
+    });
+  }
+
+
   const TABS = [
     {id:"tracker",  label:"📋 Weekly Tracker"},
     {id:"notes",    label:"📝 Meeting Notes"},
@@ -712,7 +807,7 @@ export default function App() {
               </div>
               <h1 style={{margin:0,fontSize:24,fontWeight:800,color:"#fff",letterSpacing:"-0.02em"}}>
                 HDSTP – Group 6 Activity Tracker
-                <span style={{fontSize:13,fontWeight:400,color:"rgba(255,255,255,0.45)",marginLeft:12}}>Feb 15 – Jun 29, 2026</span>
+                <span style={{fontSize:13,fontWeight:400,color:"rgba(255,255,255,0.45)",marginLeft:12}}>{MEETING_RANGE_LABEL}</span>
               </h1>
             </div>
 
@@ -725,7 +820,44 @@ export default function App() {
                   {showWeekNav&&(
                     <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,0.14)",overflow:"hidden",zIndex:500,minWidth:230}}>
                       <div style={{padding:"8px 14px",fontSize:10,fontWeight:700,color:"#9ca3af",letterSpacing:"0.06em",textTransform:"uppercase",background:"#f9fafb",borderBottom:"1px solid #f1f5f9"}}>Saved Weeks</div>
-                      {[...weeks].reverse().map(w=>(<div key={w.id} onClick={()=>{setActiveWeekId(w.id);setShowWeekNav(false);}} style={{padding:"10px 14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",background:w.id===activeWeekId?"#eff6ff":"#fff",borderBottom:"1px solid #f9fafb"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=w.id===activeWeekId?"#eff6ff":"#fff"}><span style={{fontSize:13,fontWeight:w.id===activeWeekId?700:400,color:w.id===activeWeekId?"#2E75B6":"#374151"}}>{formatDate(w.date)}</span>{w.id===weeks[weeks.length-1].id&&<span style={{fontSize:10,background:"#dbeafe",color:"#1e40af",borderRadius:4,padding:"1px 7px",fontWeight:600}}>Latest</span>}</div>))}
+                      {[...weeks].reverse().map(w=>(
+                        <div
+                          key={w.id}
+                          onClick={()=>{setActiveWeekId(w.id);setShowWeekNav(false);}}
+                          style={{padding:"10px 14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",background:w.id===activeWeekId?"#eff6ff":"#fff",borderBottom:"1px solid #f9fafb",gap:10}}
+                          onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                          onMouseLeave={e=>e.currentTarget.style.background=w.id===activeWeekId?"#eff6ff":"#fff"}
+                        >
+                          <span style={{fontSize:13,fontWeight:w.id===activeWeekId?700:400,color:w.id===activeWeekId?"#2E75B6":"#374151"}}>
+                            {formatDate(w.date)}
+                          </span>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            {w.id===weeks[weeks.length-1].id && (
+                              <span style={{fontSize:10,background:"#dbeafe",color:"#1e40af",borderRadius:4,padding:"1px 7px",fontWeight:600}}>Latest</span>
+                            )}
+                            <button
+                              type="button"
+                              title="Delete week"
+                              onClick={(e)=>{e.stopPropagation();handleDeleteWeek(w.id);}}
+                              disabled={weeks.length<=1}
+                              style={{
+                                border:"1px solid #e2e8f0",
+                                background:"#fff",
+                                color: weeks.length<=1 ? "#cbd5e1" : "#ef4444",
+                                borderRadius:7,
+                                padding:"4px 8px",
+                                fontSize:12,
+                                fontWeight:700,
+                                cursor: weeks.length<=1 ? "not-allowed" : "pointer",
+                                fontFamily:"inherit",
+                                lineHeight:1,
+                              }}
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
