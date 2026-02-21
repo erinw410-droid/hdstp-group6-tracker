@@ -97,6 +97,75 @@ const MEMBER_COLORS = [
   { bg:"#e0f2fe", text:"#0c4a6e" },
 ];
 
+// ─── Data normalization / migrations ─────────────────────────────
+const ROTATION_START_ISO = "2026-02-22";
+
+function isoDate(d) {
+  if (!d) return "";
+  const dt = typeof d === "string"
+    ? new Date(d + (d.includes("T") ? "" : "T00:00:00"))
+    : new Date(d);
+  if (Number.isNaN(dt.getTime())) return "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const da = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${da}`;
+}
+
+function addDaysISO(dateStr, days) {
+  const dt = new Date(String(dateStr) + "T00:00:00");
+  if (Number.isNaN(dt.getTime())) return String(dateStr || "");
+  dt.setDate(dt.getDate() + days);
+  return isoDate(dt);
+}
+
+function normalizeMeetingNotes(mnRaw) {
+  const base = emptyMeetingNotes();
+  const mn = (mnRaw && typeof mnRaw === "object") ? mnRaw : {};
+  return {
+    ...base,
+    ...mn,
+    attendees: Array.isArray(mn.attendees) ? mn.attendees : [],
+    agendaItems: Array.isArray(mn.agendaItems) ? mn.agendaItems : [],
+    actionItems: Array.isArray(mn.actionItems) ? mn.actionItems : [],
+    decisions: Array.isArray(mn.decisions) ? mn.decisions : [],
+    questions: Array.isArray(mn.questions) ? mn.questions : [],
+  };
+}
+
+function normalizeWeek(wRaw) {
+  const w = (wRaw && typeof wRaw === "object") ? wRaw : {};
+  return {
+    id: w.id || uid(),
+    date: isoDate(w.date) || ROTATION_START_ISO,
+    shortRows: Array.isArray(w.shortRows) ? w.shortRows : makeRows(3),
+    longRows: Array.isArray(w.longRows) ? w.longRows : makeRows(3),
+    meetingNotes: normalizeMeetingNotes(w.meetingNotes),
+  };
+}
+
+function normalizeAndMigrateState(data) {
+  if (!data || typeof data !== "object") return null;
+  const weeksRaw = Array.isArray(data.weeks) ? data.weeks : [];
+  let weeks = weeksRaw.map(normalizeWeek);
+
+  // Migration: older saved data started at 2026-02-15. Shift forward one week.
+  if (weeks.length > 0 && isoDate(weeks[0].date) === "2026-02-15") {
+    weeks = weeks.map(w => ({ ...w, date: addDaysISO(w.date, 7) }));
+  }
+
+  if (weeks.length === 0) {
+    weeks = makeInitWeeks().map(normalizeWeek);
+  }
+
+  const ids = new Set(weeks.map(w => w.id));
+  const activeWeekId = (data.activeWeekId && ids.has(data.activeWeekId))
+    ? data.activeWeekId
+    : weeks[weeks.length - 1].id;
+
+  return { weeks, activeWeekId };
+}
+
 function getMeetingDates() {
   // Meeting rotation should start the week of Feb 22, 2026
   const dates = []; let d = new Date(2026,1,22);
@@ -301,12 +370,13 @@ function GoalTable({ title, titleBg, accentBg, rows, setRows }) {
 
 // ─── Agenda list ──────────────────────────────────────────────────
 function AgendaList({ items, setItems, accentColor="#2E75B6" }) {
-  function upd(id,field,val) { setItems(p=>p.map(x=>x.id===id?{...x,[field]:val}:x)); }
-  function del(id) { setItems(p=>p.filter(x=>x.id!==id)); }
-  function add()   { setItems(p=>[...p,emptyAgendaItem()]); }
+  const safeItems = Array.isArray(items) ? items : [];
+  function upd(id,field,val) { setItems(p=>{ const arr = Array.isArray(p) ? p : []; return arr.map(x=>x.id===id?{...x,[field]:val}:x); }); }
+  function del(id) { setItems(p=>{ const arr = Array.isArray(p) ? p : []; return arr.filter(x=>x.id!==id); }); }
+  function add()   { setItems(p=>{ const arr = Array.isArray(p) ? p : []; return [...arr, emptyAgendaItem()]; }); }
   return (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      {items.map((item,i)=>(
+      {safeItems.map((item,i)=>(
         <div key={item.id} style={{display:"flex",alignItems:"flex-start",gap:10}}>
           <span style={{width:24,height:24,borderRadius:"50%",background:`${accentColor}18`,color:accentColor,fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:5}}>{i+1}</span>
           <div style={{flex:1,display:"flex",flexDirection:"column",gap:5}}>
@@ -449,7 +519,7 @@ function MeetingNotesTab({ week, updWeek }) {
   return (
     <div style={{maxWidth:960,margin:"0 auto"}}>
       {/* Allow dropdown menus (attendees, etc.) to overflow above the next section */}
-      <div style={card({marginBottom:20, overflow:"visible"})}>
+      <div style={card({marginBottom:20, overflow:"visible", position:"relative", zIndex:50})}>
         <div style={sectionHead("#1F3864")}><span style={{fontSize:16}}>📝</span><span style={{fontSize:15,fontWeight:800,color:"#fff"}}>Meeting Notes</span><span style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginLeft:4}}>— Week of {formatDate(week.date)}</span></div>
         <div style={{padding:"18px 20px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
           <div><span style={labelStyle}>Meeting Time</span><input value={mn.time} onChange={e=>setTime(e.target.value)} placeholder="e.g. 2:00 PM EST" style={metaInput} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></div>
@@ -527,9 +597,15 @@ export default function App() {
     async function load() {
       try {
         const data = await loadState();
-        if (data && data.weeks && data.weeks.length > 0) {
-          setWeeks(data.weeks);
-          setActiveWeekId(data.activeWeekId || data.weeks[data.weeks.length-1].id);
+        const norm = normalizeAndMigrateState(data);
+        if (norm && norm.weeks && norm.weeks.length > 0) {
+          setWeeks(norm.weeks);
+          setActiveWeekId(norm.activeWeekId);
+
+          // If we migrated dates, persist immediately so all clients converge.
+          if (data && data.weeks && data.weeks.length > 0 && isoDate(data.weeks[0]?.date) === "2026-02-15") {
+            try { await saveState({ weeks: norm.weeks, activeWeekId: norm.activeWeekId }); } catch(e) { /* ignore */ }
+          }
         } else {
           // First time — write initial state
           const initWeeks = makeInitWeeks();
@@ -569,8 +645,9 @@ export default function App() {
     const interval = setInterval(async ()=>{
       try {
         const data = await loadState();
-        if (data && data.weeks) {
-          setWeeks(data.weeks);
+        const norm = normalizeAndMigrateState(data);
+        if (norm && norm.weeks) {
+          setWeeks(norm.weeks);
           // Don't change activeWeekId from polling — let each user control their own view
         }
       } catch(e) { /* silent */ }
