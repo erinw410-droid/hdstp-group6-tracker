@@ -48,33 +48,33 @@ async function initRow(data) {
 
 // ─── Constants ────────────────────────────────────────────────────
 const MEMBERS = [
-  "Coppola, Quentin",
-  "Garbarine, Ian",
-  "Tanifum, Eric",
-  "Ng, Crystal",
-  "Torres, Jahleel",
-  "Williams, Erin",
+  "Quentin Coppola",
+  "Ian Garbarine",
+  "Eric Tanifum",
+  "Crystal Ng",
+  "Jahleel Torres",
+  "Erin Williams",
 ];
 
-// Accept legacy/full-name formats (e.g., "Quentin Coppola") and normalize to "Last, First".
-const MEMBER_CANON = (() => {
-  const m = new Map();
-  for (const lf of MEMBERS) {
-    const [lastRaw, firstRaw] = String(lf).split(",");
-    const last = (lastRaw || "").trim();
-    const first = (firstRaw || "").trim();
-    const full = `${first} ${last}`.trim();
-    if (full) m.set(full, lf);
-  }
-  return m;
-})();
-
+// Normalize member names to "First Last" everywhere.
+// Handles legacy formats like "Last, First".
 function normalizeMemberName(v) {
   const s = String(v || "").trim();
   if (!s) return "";
+  // Already "First Last"
   if (MEMBERS.includes(s)) return s;
-  if (MEMBER_CANON.has(s)) return MEMBER_CANON.get(s);
-  return s; // keep unknown values but handle them safely in UI
+
+  // Legacy "Last, First"
+  if (s.includes(",")) {
+    const [lastRaw, firstRaw] = s.split(",");
+    const first = (firstRaw || "").trim();
+    const last = (lastRaw || "").trim();
+    const fl = `${first} ${last}`.replace(/\s+/g, " ").trim();
+    if (fl) return fl;
+  }
+
+  // Legacy "First Last" but not in MEMBERS (keep it, but don't crash UI)
+  return s;
 }
 
 const CATEGORIES = [
@@ -151,9 +151,19 @@ function normalizeMeetingNotes(mnRaw) {
       ? mn.attendees.map(normalizeMemberName).filter(Boolean)
       : [],
     agendaItems: Array.isArray(mn.agendaItems) ? mn.agendaItems : [],
-    actionItems: Array.isArray(mn.actionItems) ? mn.actionItems : [],
+    actionItems: Array.isArray(mn.actionItems)
+      ? mn.actionItems.map(ai => {
+          const a = (ai && typeof ai === "object") ? ai : {};
+          return { ...emptyActionItem(), ...a, owner: normalizeMemberName(a.owner) };
+        })
+      : [],
     decisions: Array.isArray(mn.decisions) ? mn.decisions : [],
-    questions: Array.isArray(mn.questions) ? mn.questions : [],
+    questions: Array.isArray(mn.questions)
+      ? mn.questions.map(qi => {
+          const q = (qi && typeof qi === "object") ? qi : {};
+          return { ...emptyQuestion(), ...q, owner: normalizeMemberName(q.owner) };
+        })
+      : [],
   };
 }
 
@@ -162,8 +172,8 @@ function normalizeWeek(wRaw) {
   return {
     id: w.id || uid(),
     date: isoDate(w.date) || ROTATION_START_ISO,
-    shortRows: Array.isArray(w.shortRows) ? w.shortRows : makeRows(3),
-    longRows: Array.isArray(w.longRows) ? w.longRows : makeRows(3),
+    shortRows: Array.isArray(w.shortRows) ? w.shortRows.map(normalizeGoalRow) : makeRows(3),
+    longRows: Array.isArray(w.longRows) ? w.longRows.map(normalizeGoalRow) : makeRows(3),
     meetingNotes: normalizeMeetingNotes(w.meetingNotes),
   };
 }
@@ -204,7 +214,15 @@ for (const [k, v] of Object.entries(rawLO)) {
   if (dk && dv) leaderOverrides[dk] = dv;
 }
 
-return { weeks, activeWeekId, leaderOverrides };
+const rawNO = (data.notetakerOverrides && typeof data.notetakerOverrides === "object") ? data.notetakerOverrides : {};
+const notetakerOverrides = {};
+for (const [k, v] of Object.entries(rawNO)) {
+  const dk = isoDate(k) || String(k || "");
+  const dv = normalizeMemberName(v);
+  if (dk && dv) notetakerOverrides[dk] = dv;
+}
+
+return { weeks, activeWeekId, leaderOverrides, notetakerOverrides };
 }
 
 function getMeetingDates() {
@@ -222,8 +240,13 @@ const MEETING_RANGE_LABEL = (() => {
   const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${fmt(first)} - ${fmt(last)}, ${last.getFullYear()}`;
 })();
-const LEADERS_ASC     = [...MEMBERS].sort((a,b)=>a.split(",")[0].localeCompare(b.split(",")[0]));
-const NOTETAKERS_DESC = [...MEMBERS].sort((a,b)=>b.split(",")[0].localeCompare(a.split(",")[0]));
+const LEADERS_ASC     = [...MEMBERS].sort((a,b)=> {
+  const al = a.trim().split(" ").slice(-1)[0];
+  const bl = b.trim().split(" ").slice(-1)[0];
+  const cmp = al.localeCompare(bl);
+  return cmp !== 0 ? cmp : a.localeCompare(b);
+});
+const NOTETAKERS_DESC = [...LEADERS_ASC].slice().reverse();
 
 const ZOOM_LINK = "https://miami.zoom.us/j/93853903712?pwd=vAJBlQI5bkn7MeGZI44ZCvRI2fvAVl.1";
 const ZOOM_ID   = "938 5390 3712";
@@ -258,6 +281,20 @@ let _uid = 1;
 const uid = () => String(_uid++);
 
 function emptyRow()         { return { id:uid(), description:"", assigned:[], category:"", priority:"Medium", status:"Not Started", notes:"" }; }
+
+function normalizeAssignedList(v) {
+  const arr = Array.isArray(v) ? v : [];
+  return arr.map(normalizeMemberName).filter(Boolean);
+}
+
+function normalizeGoalRow(rRaw) {
+  const r = (rRaw && typeof rRaw === "object") ? rRaw : {};
+  return {
+    ...emptyRow(),
+    ...r,
+    assigned: normalizeAssignedList(r.assigned),
+  };
+}
 function makeRows(n=3)      { return Array.from({length:n}, emptyRow); }
 function emptyAgendaItem(text="") { return { id:uid(), text, notes:"" }; }
 function emptyQuestion()    { return { id:uid(), text:"", owner:"", resolved:false }; }
@@ -384,9 +421,7 @@ function MultiSelect({ options, value, onChange, disabled }) {
               const canon = normalizeMemberName(v);
               const mi = MEMBERS.indexOf(canon);
               const col = MEMBER_COLORS[(mi >= 0 ? mi : 0) % MEMBER_COLORS.length];
-              const name = canon.includes(",")
-                ? (canon.split(",")[1]?.trim()+" "+canon.split(",")[0]?.trim()).trim()
-                : canon;
+              const name = canon;
               return(
                 <span key={v} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 5px",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
                   {name}
@@ -402,9 +437,7 @@ function MultiSelect({ options, value, onChange, disabled }) {
           const canonOpt = normalizeMemberName(opt);
           const sel = value.map(normalizeMemberName).includes(canonOpt);
           const col = MEMBER_COLORS[i%MEMBER_COLORS.length];
-          const name = canonOpt.includes(",")
-            ? (canonOpt.split(",")[1]?.trim()+" "+canonOpt.split(",")[0]?.trim()).trim()
-            : canonOpt;
+          const name = canonOpt;
           return(
             <div key={opt} onClick={()=>toggle(canonOpt)} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:9,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background=sel?"#e6f0ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>
               <div style={{width:15,height:15,borderRadius:3,border:"1.5px solid",borderColor:sel?"#2E75B6":"#d1d5db",background:sel?"#2E75B6":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}</div>
@@ -544,7 +577,7 @@ function ActionItemsTable({ items, setItems }) {
   function upd(id,field,val) { setItems(p=>p.map(x=>x.id===id?{...x,[field]:val}:x)); }
   function del(id) { setItems(p=>p.filter(x=>x.id!==id)); }
   function add()   { setItems(p=>[...p,emptyActionItem()]); }
-  const memberNames = MEMBERS.map(m=>m.split(",")[1]?.trim()+" "+m.split(",")[0]?.trim());
+  const memberNames = MEMBERS;
   return (
     <div>
       <div style={{overflowX:"auto",borderRadius:8,border:"1.5px solid #e2e8f0"}}>
@@ -573,7 +606,7 @@ function QuestionsTable({ items, setItems }) {
   function upd(id,field,val) { setItems(p=>p.map(x=>x.id===id?{...x,[field]:val}:x)); }
   function del(id) { setItems(p=>p.filter(x=>x.id!==id)); }
   function add()   { setItems(p=>[...p,emptyQuestion()]); }
-  const memberNames = MEMBERS.map(m=>m.split(",")[1]?.trim()+" "+m.split(",")[0]?.trim());
+  const memberNames = MEMBERS;
   return (
     <div>
       <div style={{overflowX:"auto",borderRadius:8,border:"1.5px solid #e2e8f0"}}>
@@ -612,7 +645,7 @@ function Section({ icon, title, accentColor="#2E75B6", children, badge }) {
 }
 
 // ─── Meeting Notes tab ────────────────────────────────────────────
-function MeetingNotesTab({ week, updWeek, leaderOverrides }) {
+function MeetingNotesTab({ week, updWeek, leaderOverrides, notetakerOverrides }) {
   const mn = week.meetingNotes;
   const mnRef = useRef(mn);
   mnRef.current = mn;
@@ -646,7 +679,7 @@ function MeetingNotesTab({ week, updWeek, leaderOverrides }) {
   const idx = weekIdx>=0?weekIdx%6:0;
   const dateKey = isoDate(week.date);
   const leader = (leaderOverrides && dateKey && leaderOverrides[dateKey]) ? leaderOverrides[dateKey] : LEADERS_ASC[idx];
-  const notetaker = NOTETAKERS_DESC[idx];
+  const notetaker = (notetakerOverrides && dateKey && notetakerOverrides[dateKey]) ? notetakerOverrides[dateKey] : NOTETAKERS_DESC[idx];
   const shortActive=week.shortRows.filter(r=>r.status!=="Complete");
   const shortCompleted=week.shortRows.filter(r=>r.status==="Complete");
   const longCompleted=week.longRows.filter(r=>r.status==="Complete");
@@ -670,13 +703,13 @@ function MeetingNotesTab({ week, updWeek, leaderOverrides }) {
       <Section icon="📋" title="Agenda" accentColor="#2E75B6"><AgendaList items={mn.agendaItems} setItems={setAgendaItems} accentColor="#2E75B6"/></Section>
       <Section icon="✅" title="This Week's Task Recap" accentColor="#2E75B6" badge={`${shortCompleted.length}/${week.shortRows.length} complete`}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-          <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Active Tasks ({shortActive.length})</p>{shortActive.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No active tasks.</p>:shortActive.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f8fafc",borderRadius:7,borderLeft:"3px solid #2E75B6"}}><div style={{fontSize:13,fontWeight:600,color:"#1F3864",marginBottom:3}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(a);const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=a.split(",")[1]?.trim()+" "+a.split(",")[0]?.trim();return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.status&&<span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{r.status}</span>}</div></div>))}</div>
-          <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Completed ({shortCompleted.length})</p>{shortCompleted.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>Nothing completed yet.</p>:shortCompleted.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:7,borderLeft:"3px solid #10b981",opacity:0.8}}><div style={{fontSize:13,color:"#6b7280",textDecoration:"line-through"}}>{r.description||"—"}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:3}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(a);const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=a.split(",")[1]?.trim()+" "+a.split(",")[0]?.trim();return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600,opacity:0.7}}>{n}</span>);})}</div></div>))}</div>
+          <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Active Tasks ({shortActive.length})</p>{shortActive.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No active tasks.</p>:shortActive.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f8fafc",borderRadius:7,borderLeft:"3px solid #2E75B6"}}><div style={{fontSize:13,fontWeight:600,color:"#1F3864",marginBottom:3}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.status&&<span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{r.status}</span>}</div></div>))}</div>
+          <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Completed ({shortCompleted.length})</p>{shortCompleted.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>Nothing completed yet.</p>:shortCompleted.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:7,borderLeft:"3px solid #10b981",opacity:0.8}}><div style={{fontSize:13,color:"#6b7280",textDecoration:"line-through"}}>{r.description||"—"}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:3}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600,opacity:0.7}}>{n}</span>);})}</div></div>))}</div>
         </div>
         <div><span style={labelStyle}>Additional notes on short-term tasks</span><TA value={mn.shortTaskRecap} onChange={setShortRecap} placeholder="Summarize progress, blockers, or key decisions…" rows={3}/></div>
       </Section>
       <Section icon="🎯" title="Long-Term Goals Status" accentColor="#1F3864" badge={`${longCompleted.length}/${week.longRows.length} complete`}>
-        <div style={{marginBottom:16}}>{week.longRows.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No long-term goals set.</p>:week.longRows.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"10px 12px",background:r.status==="Complete"?"#f0fdf4":"#f8fafc",borderRadius:7,borderLeft:`3px solid ${r.status==="Complete"?"#10b981":r.status==="In Progress"?"#f59e0b":r.status==="On Hold"?"#ef4444":"#cbd5e1"}`,opacity:r.status==="Complete"?0.7:1}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}><div><div style={{fontSize:13,fontWeight:600,color:r.status==="Complete"?"#6b7280":"#1F3864",textDecoration:r.status==="Complete"?"line-through":"none",marginBottom:4}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled goal</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(a);const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=a.split(",")[1]?.trim()+" "+a.split(",")[0]?.trim();return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.category&&<span style={{background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px",fontSize:10}}>{r.category}</span>}</div></div><span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{r.status}</span></div></div>))}</div>
+        <div style={{marginBottom:16}}>{week.longRows.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No long-term goals set.</p>:week.longRows.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"10px 12px",background:r.status==="Complete"?"#f0fdf4":"#f8fafc",borderRadius:7,borderLeft:`3px solid ${r.status==="Complete"?"#10b981":r.status==="In Progress"?"#f59e0b":r.status==="On Hold"?"#ef4444":"#cbd5e1"}`,opacity:r.status==="Complete"?0.7:1}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}><div><div style={{fontSize:13,fontWeight:600,color:r.status==="Complete"?"#6b7280":"#1F3864",textDecoration:r.status==="Complete"?"line-through":"none",marginBottom:4}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled goal</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.category&&<span style={{background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px",fontSize:10}}>{r.category}</span>}</div></div><span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{r.status}</span></div></div>))}</div>
         <div><span style={labelStyle}>Notes on milestone progress</span><TA value={mn.longGoalRecap} onChange={setLongRecap} placeholder="Highlight progress toward long-term goals, upcoming milestones, or changes in scope…" rows={3}/></div>
       </Section>
       <Section icon="⚡" title="Action Items" accentColor="#b45309"><ActionItemsTable items={mn.actionItems} setItems={setActionItems}/></Section>
@@ -725,6 +758,7 @@ export default function App() {
   const [weeks,setWeeks]               = useState(makeInitWeeks);
   const [activeWeekId,setActiveWeekId] = useState(()=>weeks[0].id);
   const [leaderOverrides,setLeaderOverrides] = useState({});
+  const [notetakerOverrides,setNotetakerOverrides] = useState({});
 
   // Ensure portal-rendered dropdowns match app typography
   useEffect(()=>{
@@ -746,15 +780,16 @@ export default function App() {
           setWeeks(norm.weeks);
           setActiveWeekId(norm.activeWeekId);
           setLeaderOverrides(norm.leaderOverrides || {});
+          setNotetakerOverrides(norm.notetakerOverrides || {});
 
           // If we migrated dates, persist immediately so all clients converge.
           if (data && data.weeks && data.weeks.length > 0 && isoDate(data.weeks[0]?.date) === "2026-02-15") {
-            try { await saveState({ weeks: norm.weeks, activeWeekId: norm.activeWeekId, leaderOverrides: norm.leaderOverrides || {} }); } catch(e) { /* ignore */ }
+            try { await saveState({ weeks: norm.weeks, activeWeekId: norm.activeWeekId, leaderOverrides: norm.leaderOverrides || {}, notetakerOverrides: norm.notetakerOverrides || {} }); } catch(e) { /* ignore */ }
           }
         } else {
           // First time — write initial state
           const initWeeks = makeInitWeeks();
-          await initRow({ weeks: initWeeks, activeWeekId: initWeeks[0].id, leaderOverrides: {} });
+          await initRow({ weeks: initWeeks, activeWeekId: initWeeks[0].id, leaderOverrides: {}, notetakerOverrides: {} });
           setWeeks(initWeeks);
           setActiveWeekId(initWeeks[0].id);
           setLeaderOverrides({});
@@ -776,7 +811,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimer.current = setTimeout(async ()=>{
       try {
-        await saveState({ weeks, activeWeekId, leaderOverrides });
+        await saveState({ weeks, activeWeekId, leaderOverrides, notetakerOverrides });
         setSaveStatus("saved");
       } catch(e) {
         console.error(e);
@@ -795,6 +830,7 @@ export default function App() {
         if (norm && norm.weeks) {
           setWeeks(norm.weeks);
           setLeaderOverrides(norm.leaderOverrides || {});
+          setNotetakerOverrides(norm.notetakerOverrides || {});
           // Don't change activeWeekId from polling - let each user control their own view
         }
       } catch(e) { /* silent */ }
@@ -972,7 +1008,7 @@ export default function App() {
             </div>
           )}
 
-          {tab==="notes"&&<MeetingNotesTab week={activeWeek} updWeek={updWeek} leaderOverrides={leaderOverrides}/>}
+          {tab==="notes"&&<MeetingNotesTab week={activeWeek} updWeek={updWeek} leaderOverrides={leaderOverrides} notetakerOverrides={notetakerOverrides}/>}
 
           {tab==="rotation"&&(
             <div>
@@ -1004,7 +1040,28 @@ export default function App() {
                           allowClear={true}
                         />
                       </div>
-                    </td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}><span style={{background:"#ede9fe",color:"#5b21b6",borderRadius:5,padding:"3px 9px",fontSize:12,fontWeight:600}}>{NOTETAKERS_DESC[idx]}</span></td></tr>);})}</tbody>
+                    </td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}>
+                      <div style={{maxWidth:220}}>
+                        <SingleSelect
+                          options={NOTETAKERS_DESC}
+                          value={(notetakerOverrides && notetakerOverrides[isoDate(dt)]) ? notetakerOverrides[isoDate(dt)] : NOTETAKERS_DESC[idx]}
+                          onChange={(v)=>{
+                            const key = isoDate(dt);
+                            setNotetakerOverrides(prev=>{
+                              const next = { ...prev };
+                              if (!v) {
+                                delete next[key];
+                              } else {
+                                next[key] = normalizeMemberName(v);
+                              }
+                              return next;
+                            });
+                          }}
+                          placeholder="Select notetaker…"
+                          allowClear={true}
+                        />
+                      </div>
+                    </td></tr>);})}</tbody>
                 </table>
               </div>
             </div>
@@ -1012,7 +1069,7 @@ export default function App() {
 
           {tab==="cover"&&(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-              <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#2E75B6",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Team Members</span></div>{MEMBERS.map((m,i)=>{const col=MEMBER_COLORS[i%MEMBER_COLORS.length];const first=m.split(",")[1]?.trim(),last=m.split(",")[0]?.trim();return(<div key={m} style={{padding:"12px 20px",display:"flex",alignItems:"center",gap:12,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><div style={{width:36,height:36,borderRadius:"50%",background:col.bg,color:col.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{first?.[0]}{last?.[0]}</div><span style={{fontWeight:600,fontSize:14,color:"#1F3864"}}>{first} {last}</span></div>);})}</div>
+              <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#2E75B6",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Team Members</span></div>{MEMBERS.map((m,i)=>{const col=MEMBER_COLORS[i%MEMBER_COLORS.length];const parts=String(m||"").trim().split(/\s+/);const first=parts[0]||"";const last=parts.length>1?parts[parts.length-1]:"";const initials=(first[0]||"")+(last[0]||"");return(<div key={m} style={{padding:"12px 20px",display:"flex",alignItems:"center",gap:12,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><div style={{width:36,height:36,borderRadius:"50%",background:col.bg,color:col.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{initials}</div><span style={{fontWeight:600,fontSize:14,color:"#1F3864"}}>{m}</span></div>);})}</div>
               <div style={{display:"flex",flexDirection:"column",gap:16}}>
                 <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#1F3864",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Status Guide</span></div>{STATUSES.map((s,i)=>{const c=STATUS_COLORS[s];return(<div key={s} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{s}</span></div>);})}</div>
                 <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#1F3864",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Priority Guide</span></div>{PRIORITIES.map((p,i)=>{const c=PRIORITY_COLORS[p];return(<div key={p} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{p}</span></div>);})}</div>
