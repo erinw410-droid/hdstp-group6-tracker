@@ -195,7 +195,15 @@ function normalizeAndMigrateState(data) {
     ? data.activeWeekId
     : weeks[weeks.length - 1].id;
 
-  return { weeks, activeWeekId };
+  const rawLO = (data.leaderOverrides && typeof data.leaderOverrides === "object") ? data.leaderOverrides : {};
+const leaderOverrides = {};
+for (const [k, v] of Object.entries(rawLO)) {
+  const dk = isoDate(k) || String(k || "");
+  const dv = normalizeMemberName(v);
+  if (dk && dv) leaderOverrides[dk] = dv;
+}
+
+return { weeks, activeWeekId, leaderOverrides };
 }
 
 function getMeetingDates() {
@@ -360,7 +368,7 @@ function MultiSelect({ options, value, onChange, disabled }) {
 }
 
 // ─── Single-select ────────────────────────────────────────────────
-function SingleSelect({ options, value, onChange, colorMap, disabled, placeholder="Select…" }) {
+function SingleSelect({ options, value, onChange, colorMap, disabled, placeholder="Select…", allowClear=false }) {
   const [open,setOpen] = useState(false);
   const ref = useOutsideClose(()=>setOpen(false));
   const col = colorMap?.[value];
@@ -371,7 +379,7 @@ function SingleSelect({ options, value, onChange, colorMap, disabled, placeholde
         {!disabled&&<span style={{position:"absolute",right:6,color:"#94a3b8",fontSize:9}}>{open?"▲":"▼"}</span>}
       </div>
       {open&&(<div style={{position:"absolute",top:"calc(100% + 3px)",left:0,right:0,zIndex:9999,background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
-        {options.map(opt=>{const c=colorMap?.[opt];const sel=value===opt;return(<div key={opt} onClick={()=>{onChange(opt);setOpen(false);}} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>{sel&&<span style={{color:"#2E75B6",fontSize:10}}>✓</span>}<span style={{background:c?.bg||"transparent",color:c?.text||"#374151",borderRadius:4,padding:c?"2px 8px":0,fontSize:13,fontWeight:sel?600:400}}>{opt}</span></div>);})}</div>)}
+        {options.map(opt=>{const c=colorMap?.[opt];const sel=value===opt;return(<div key={opt} onClick={()=>{ const next = (allowClear && value===opt) ? "" : opt; onChange(next); setOpen(false); }} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>{sel&&<span style={{color:"#2E75B6",fontSize:10}}>✓</span>}<span style={{background:c?.bg||"transparent",color:c?.text||"#374151",borderRadius:4,padding:c?"2px 8px":0,fontSize:13,fontWeight:sel?600:400}}>{opt}</span></div>);})}</div>)}
     </div>
   );
 }
@@ -394,7 +402,7 @@ function GoalRow({ row, dimmed, accentBg, onUpd, onDel }) {
         }
       </td>
       <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:210}}><MultiSelect options={MEMBERS} value={row.assigned} onChange={v=>onUpd(row.id,"assigned",v)} disabled={dimmed}/></td>
-      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:165}}><SingleSelect options={CATEGORIES} value={row.category} onChange={v=>onUpd(row.id,"category",v)} disabled={dimmed}/></td>
+      <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:165}}><SingleSelect options={CATEGORIES} value={row.category} onChange={v=>onUpd(row.id,"category",v)} disabled={dimmed} allowClear={true}/></td>
       <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:105}}><SingleSelect options={PRIORITIES} value={row.priority} onChange={v=>onUpd(row.id,"priority",v)} colorMap={PRIORITY_COLORS} disabled={dimmed}/></td>
       <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:125}}><SingleSelect options={STATUSES} value={row.status} onChange={v=>onUpd(row.id,"status",v)} colorMap={STATUS_COLORS}/></td>
       <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:185}}>
@@ -535,8 +543,9 @@ function QuestionsTable({ items, setItems }) {
 
 // ─── Section card ─────────────────────────────────────────────────
 function Section({ icon, title, accentColor="#2E75B6", children, badge }) {
+  // Use overflow: visible so dropdown menus (agenda categories, owners, etc.) are never clipped.
   return (
-    <div style={card({marginBottom:20})}>
+    <div style={card({marginBottom:20, overflow:"visible", position:"relative", zIndex:20})}>
       <div style={{...sectionHead(accentColor)}}>
         <span style={{fontSize:16}}>{icon}</span>
         <span style={{fontSize:14,fontWeight:800,color:"#fff"}}>{title}</span>
@@ -548,7 +557,7 @@ function Section({ icon, title, accentColor="#2E75B6", children, badge }) {
 }
 
 // ─── Meeting Notes tab ────────────────────────────────────────────
-function MeetingNotesTab({ week, updWeek }) {
+function MeetingNotesTab({ week, updWeek, leaderOverrides }) {
   const mn = week.meetingNotes;
   const mnRef = useRef(mn);
   mnRef.current = mn;
@@ -580,7 +589,9 @@ function MeetingNotesTab({ week, updWeek }) {
   const setAttendees    = useCallback(v=>upd("attendees",v), [upd]);
   const weekIdx = MEETING_DATES.findIndex(d=>{ const dt=new Date(d);dt.setHours(0,0,0,0);const wd=new Date(week.date+"T00:00:00");wd.setHours(0,0,0,0);return dt.getTime()===wd.getTime(); });
   const idx = weekIdx>=0?weekIdx%6:0;
-  const leader=LEADERS_ASC[idx], notetaker=NOTETAKERS_DESC[idx];
+  const dateKey = isoDate(week.date);
+  const leader = (leaderOverrides && dateKey && leaderOverrides[dateKey]) ? leaderOverrides[dateKey] : LEADERS_ASC[idx];
+  const notetaker = NOTETAKERS_DESC[idx];
   const shortActive=week.shortRows.filter(r=>r.status!=="Complete");
   const shortCompleted=week.shortRows.filter(r=>r.status==="Complete");
   const longCompleted=week.longRows.filter(r=>r.status==="Complete");
@@ -658,6 +669,7 @@ export default function App() {
 
   const [weeks,setWeeks]               = useState(makeInitWeeks);
   const [activeWeekId,setActiveWeekId] = useState(()=>weeks[0].id);
+  const [leaderOverrides,setLeaderOverrides] = useState({});
 
   const activeWeek = weeks.find(w=>w.id===activeWeekId)||weeks[weeks.length-1];
   const isLatest   = activeWeek.id===weeks[weeks.length-1].id;
@@ -671,17 +683,19 @@ export default function App() {
         if (norm && norm.weeks && norm.weeks.length > 0) {
           setWeeks(norm.weeks);
           setActiveWeekId(norm.activeWeekId);
+          setLeaderOverrides(norm.leaderOverrides || {});
 
           // If we migrated dates, persist immediately so all clients converge.
           if (data && data.weeks && data.weeks.length > 0 && isoDate(data.weeks[0]?.date) === "2026-02-15") {
-            try { await saveState({ weeks: norm.weeks, activeWeekId: norm.activeWeekId }); } catch(e) { /* ignore */ }
+            try { await saveState({ weeks: norm.weeks, activeWeekId: norm.activeWeekId, leaderOverrides: norm.leaderOverrides || {} }); } catch(e) { /* ignore */ }
           }
         } else {
           // First time — write initial state
           const initWeeks = makeInitWeeks();
-          await initRow({ weeks: initWeeks, activeWeekId: initWeeks[0].id });
+          await initRow({ weeks: initWeeks, activeWeekId: initWeeks[0].id, leaderOverrides: {} });
           setWeeks(initWeeks);
           setActiveWeekId(initWeeks[0].id);
+          setLeaderOverrides({});
         }
         setDbStatus("ok");
       } catch(e) {
@@ -700,14 +714,14 @@ export default function App() {
     setSaveStatus("saving");
     saveTimer.current = setTimeout(async ()=>{
       try {
-        await saveState({ weeks, activeWeekId });
+        await saveState({ weeks, activeWeekId, leaderOverrides });
         setSaveStatus("saved");
       } catch(e) {
         console.error(e);
         setSaveStatus("error");
       }
     }, 300);
-  }, [weeks, activeWeekId, dbStatus]);
+  }, [weeks, activeWeekId, leaderOverrides, dbStatus]);
 
   // ── Poll for changes from other users every 15s ──
   useEffect(()=>{
@@ -718,7 +732,8 @@ export default function App() {
         const norm = normalizeAndMigrateState(data);
         if (norm && norm.weeks) {
           setWeeks(norm.weeks);
-          // Don't change activeWeekId from polling — let each user control their own view
+          setLeaderOverrides(norm.leaderOverrides || {});
+          // Don't change activeWeekId from polling - let each user control their own view
         }
       } catch(e) { /* silent */ }
     }, 15000);
@@ -895,7 +910,7 @@ export default function App() {
             </div>
           )}
 
-          {tab==="notes"&&<MeetingNotesTab week={activeWeek} updWeek={updWeek}/>}
+          {tab==="notes"&&<MeetingNotesTab week={activeWeek} updWeek={updWeek} leaderOverrides={leaderOverrides}/>}
 
           {tab==="rotation"&&(
             <div>
@@ -905,8 +920,29 @@ export default function App() {
               </div>
               <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
-                  <thead><tr style={{background:"#1F3864"}}>{["Wk","Date","Meeting Leader","Notetaker","Agenda / Link","Action Items"].map(h=>(<th key={h} style={{padding:"11px 14px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"left",letterSpacing:"0.05em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead>
-                  <tbody>{MEETING_DATES.map((dt,wi)=>{const idx=wi%6;const now=new Date();now.setHours(0,0,0,0);const dtc=new Date(dt);dtc.setHours(0,0,0,0);const isThis=dtc.getTime()===now.getTime();const isPast=dtc<now&&!isThis;return(<tr key={wi} style={{background:isThis?"#eff6ff":wi%2===0?"#f8fafc":"#fff",borderLeft:isThis?"3px solid #2E75B6":"3px solid transparent"}}><td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:isPast?"#9ca3af":"#1F3864",borderBottom:"1px solid #f1f5f9"}}>{wi+1}</td><td style={{padding:"10px 14px",fontSize:13,color:isPast?"#9ca3af":"#374151",borderBottom:"1px solid #f1f5f9",whiteSpace:"nowrap"}}>{dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{isThis&&<span style={{marginLeft:8,background:"#2E75B6",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:4,fontWeight:700}}>THIS WEEK</span>}</td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}><span style={{background:"#dbeafe",color:"#1e40af",borderRadius:5,padding:"3px 9px",fontSize:12,fontWeight:600}}>{LEADERS_ASC[idx]}</span></td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}><span style={{background:"#ede9fe",color:"#5b21b6",borderRadius:5,padding:"3px 9px",fontSize:12,fontWeight:600}}>{NOTETAKERS_DESC[idx]}</span></td><td style={{padding:"10px 14px",fontSize:13,color:"#9ca3af",borderBottom:"1px solid #f1f5f9"}}>—</td><td style={{padding:"10px 14px",fontSize:13,color:"#9ca3af",borderBottom:"1px solid #f1f5f9"}}>—</td></tr>);})}</tbody>
+                  <thead><tr style={{background:"#1F3864"}}>{["Wk","Date","Meeting Leader","Notetaker"].map(h=>(<th key={h} style={{padding:"11px 14px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"left",letterSpacing:"0.05em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead>
+                  <tbody>{MEETING_DATES.map((dt,wi)=>{const idx=wi%6;const now=new Date();now.setHours(0,0,0,0);const dtc=new Date(dt);dtc.setHours(0,0,0,0);const isThis=dtc.getTime()===now.getTime();const isPast=dtc<now&&!isThis;return(<tr key={wi} style={{background:isThis?"#eff6ff":wi%2===0?"#f8fafc":"#fff",borderLeft:isThis?"3px solid #2E75B6":"3px solid transparent"}}><td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:isPast?"#9ca3af":"#1F3864",borderBottom:"1px solid #f1f5f9"}}>{wi+1}</td><td style={{padding:"10px 14px",fontSize:13,color:isPast?"#9ca3af":"#374151",borderBottom:"1px solid #f1f5f9",whiteSpace:"nowrap"}}>{dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{isThis&&<span style={{marginLeft:8,background:"#2E75B6",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:4,fontWeight:700}}>THIS WEEK</span>}</td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}>
+                      <div style={{maxWidth:220}}>
+                        <SingleSelect
+                          options={LEADERS_ASC}
+                          value={(leaderOverrides && leaderOverrides[isoDate(dt)]) ? leaderOverrides[isoDate(dt)] : LEADERS_ASC[idx]}
+                          onChange={(v)=>{
+                            const key = isoDate(dt);
+                            setLeaderOverrides(prev=>{
+                              const next = { ...prev };
+                              if (!v) {
+                                delete next[key];
+                              } else {
+                                next[key] = normalizeMemberName(v);
+                              }
+                              return next;
+                            });
+                          }}
+                          placeholder="Select leader…"
+                          allowClear={true}
+                        />
+                      </div>
+                    </td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}><span style={{background:"#ede9fe",color:"#5b21b6",borderRadius:5,padding:"3px 9px",fontSize:12,fontWeight:600}}>{NOTETAKERS_DESC[idx]}</span></td></tr>);})}</tbody>
                 </table>
               </div>
             </div>
