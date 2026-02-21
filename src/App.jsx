@@ -408,7 +408,22 @@ function Section({ icon, title, accentColor="#2E75B6", children, badge }) {
 // ─── Meeting Notes tab ────────────────────────────────────────────
 function MeetingNotesTab({ week, updWeek }) {
   const mn = week.meetingNotes;
-  function upd(field,val) { updWeek("meetingNotes",{...mn,[field]:val}); }
+  const mnRef = useRef(mn);
+  mnRef.current = mn;
+  const upd = useCallback((field,val) => {
+    updWeek("meetingNotes",{...mnRef.current,[field]:val});
+  }, [updWeek]);
+
+  const setAgendaItems  = useCallback(v=>upd("agendaItems",  typeof v==="function"?v(mnRef.current.agendaItems):v),  [upd]);
+  const setShortRecap   = useCallback(v=>upd("shortTaskRecap",v), [upd]);
+  const setLongRecap    = useCallback(v=>upd("longGoalRecap",v),  [upd]);
+  const setActionItems  = useCallback(v=>upd("actionItems",  typeof v==="function"?v(mnRef.current.actionItems):v),  [upd]);
+  const setDecisions    = useCallback(v=>upd("decisions",    typeof v==="function"?v(mnRef.current.decisions):v),    [upd]);
+  const setQuestions    = useCallback(v=>upd("questions",    typeof v==="function"?v(mnRef.current.questions):v),    [upd]);
+  const setGeneralNotes = useCallback(v=>upd("generalNotes",v), [upd]);
+  const setTime         = useCallback(v=>upd("time",v),      [upd]);
+  const setLocation     = useCallback(v=>upd("location",v),  [upd]);
+  const setAttendees    = useCallback(v=>upd("attendees",v), [upd]);
   const weekIdx = MEETING_DATES.findIndex(d=>{ const dt=new Date(d);dt.setHours(0,0,0,0);const wd=new Date(week.date+"T00:00:00");wd.setHours(0,0,0,0);return dt.getTime()===wd.getTime(); });
   const idx = weekIdx>=0?weekIdx%6:0;
   const leader=LEADERS_ASC[idx], notetaker=NOTETAKERS_DESC[idx];
@@ -422,31 +437,31 @@ function MeetingNotesTab({ week, updWeek }) {
       <div style={card({marginBottom:20})}>
         <div style={sectionHead("#1F3864")}><span style={{fontSize:16}}>📝</span><span style={{fontSize:15,fontWeight:800,color:"#fff"}}>Meeting Notes</span><span style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginLeft:4}}>— Week of {formatDate(week.date)}</span></div>
         <div style={{padding:"18px 20px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
-          <div><span style={labelStyle}>Meeting Time</span><input value={mn.time} onChange={e=>upd("time",e.target.value)} placeholder="e.g. 2:00 PM EST" style={metaInput} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></div>
-          <div><span style={labelStyle}>Location / Link</span><div style={{display:"flex",flexDirection:"column",gap:4}}><input value={mn.location} onChange={e=>upd("location",e.target.value)} style={{...metaInput,fontSize:11,color:"#2E75B6"}} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/><div style={{fontSize:10,color:"#64748b",display:"flex",gap:12}}><span>ID: <strong>{ZOOM_ID}</strong></span><span>Passcode: <strong>{ZOOM_PASS}</strong></span></div></div></div>
-          <div><span style={labelStyle}>Attendees</span><MultiSelect options={MEMBERS} value={mn.attendees} onChange={v=>upd("attendees",v)}/></div>
+          <div><span style={labelStyle}>Meeting Time</span><input value={mn.time} onChange={e=>setTime(e.target.value)} placeholder="e.g. 2:00 PM EST" style={metaInput} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></div>
+          <div><span style={labelStyle}>Location / Link</span><div style={{display:"flex",flexDirection:"column",gap:4}}><input value={mn.location} onChange={e=>setLocation(e.target.value)} style={{...metaInput,fontSize:11,color:"#2E75B6"}} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/><div style={{fontSize:10,color:"#64748b",display:"flex",gap:12}}><span>ID: <strong>{ZOOM_ID}</strong></span><span>Passcode: <strong>{ZOOM_PASS}</strong></span></div></div></div>
+          <div><span style={labelStyle}>Attendees</span><MultiSelect options={MEMBERS} value={mn.attendees} onChange={setAttendees}/></div>
         </div>
         <div style={{padding:"0 20px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
           <div style={{background:"#f0f7ff",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Leader:</span><span style={{background:"#dbeafe",color:"#1e40af",borderRadius:5,padding:"3px 10px",fontSize:12,fontWeight:700}}>{leader}</span></div>
           <div style={{background:"#f5f0ff",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Notetaker:</span><span style={{background:"#ede9fe",color:"#5b21b6",borderRadius:5,padding:"3px 10px",fontSize:12,fontWeight:700}}>{notetaker}</span></div>
         </div>
       </div>
-      <Section icon="📋" title="Agenda" accentColor="#2E75B6"><AgendaList items={mn.agendaItems} setItems={v=>upd("agendaItems",v)} accentColor="#2E75B6"/></Section>
+      <Section icon="📋" title="Agenda" accentColor="#2E75B6"><AgendaList items={mn.agendaItems} setItems={setAgendaItems} accentColor="#2E75B6"/></Section>
       <Section icon="✅" title="This Week's Task Recap" accentColor="#2E75B6" badge={`${shortCompleted.length}/${week.shortRows.length} complete`}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
           <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Active Tasks ({shortActive.length})</p>{shortActive.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No active tasks.</p>:shortActive.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f8fafc",borderRadius:7,borderLeft:"3px solid #2E75B6"}}><div style={{fontSize:13,fontWeight:600,color:"#1F3864",marginBottom:3}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(a);const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=a.split(",")[1]?.trim()+" "+a.split(",")[0]?.trim();return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.status&&<span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{r.status}</span>}</div></div>))}</div>
           <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Completed ({shortCompleted.length})</p>{shortCompleted.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>Nothing completed yet.</p>:shortCompleted.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:7,borderLeft:"3px solid #10b981",opacity:0.8}}><div style={{fontSize:13,color:"#6b7280",textDecoration:"line-through"}}>{r.description||"—"}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:3}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(a);const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=a.split(",")[1]?.trim()+" "+a.split(",")[0]?.trim();return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600,opacity:0.7}}>{n}</span>);})}</div></div>))}</div>
         </div>
-        <div><span style={labelStyle}>Additional notes on short-term tasks</span><TA value={mn.shortTaskRecap} onChange={v=>upd("shortTaskRecap",v)} placeholder="Summarize progress, blockers, or key decisions…" rows={3}/></div>
+        <div><span style={labelStyle}>Additional notes on short-term tasks</span><TA value={mn.shortTaskRecap} onChange={setShortRecap} placeholder="Summarize progress, blockers, or key decisions…" rows={3}/></div>
       </Section>
       <Section icon="🎯" title="Long-Term Goals Status" accentColor="#1F3864" badge={`${longCompleted.length}/${week.longRows.length} complete`}>
         <div style={{marginBottom:16}}>{week.longRows.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No long-term goals set.</p>:week.longRows.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"10px 12px",background:r.status==="Complete"?"#f0fdf4":"#f8fafc",borderRadius:7,borderLeft:`3px solid ${r.status==="Complete"?"#10b981":r.status==="In Progress"?"#f59e0b":r.status==="On Hold"?"#ef4444":"#cbd5e1"}`,opacity:r.status==="Complete"?0.7:1}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}><div><div style={{fontSize:13,fontWeight:600,color:r.status==="Complete"?"#6b7280":"#1F3864",textDecoration:r.status==="Complete"?"line-through":"none",marginBottom:4}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled goal</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(a);const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=a.split(",")[1]?.trim()+" "+a.split(",")[0]?.trim();return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.category&&<span style={{background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px",fontSize:10}}>{r.category}</span>}</div></div><span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{r.status}</span></div></div>))}</div>
-        <div><span style={labelStyle}>Notes on milestone progress</span><TA value={mn.longGoalRecap} onChange={v=>upd("longGoalRecap",v)} placeholder="Highlight progress toward long-term goals, upcoming milestones, or changes in scope…" rows={3}/></div>
+        <div><span style={labelStyle}>Notes on milestone progress</span><TA value={mn.longGoalRecap} onChange={setLongRecap} placeholder="Highlight progress toward long-term goals, upcoming milestones, or changes in scope…" rows={3}/></div>
       </Section>
-      <Section icon="⚡" title="Action Items" accentColor="#b45309"><ActionItemsTable items={mn.actionItems} setItems={v=>upd("actionItems",v)}/></Section>
-      <Section icon="🔒" title="Decisions Made" accentColor="#065f46"><BulletList items={mn.decisions} setItems={v=>upd("decisions",v)} placeholder="Describe a decision made during the meeting…" addLabel="Add decision" accentColor="#065f46" emptyFn={emptyDecision}/></Section>
-      <Section icon="❓" title="Pending Questions & Concerns" accentColor="#7030A0"><QuestionsTable items={mn.questions} setItems={v=>upd("questions",v)}/></Section>
-      <Section icon="🗒️" title="General Notes" accentColor="#374151"><TA value={mn.generalNotes} onChange={v=>upd("generalNotes",v)} placeholder="Any additional notes or follow-ups from the meeting…" rows={4}/></Section>
+      <Section icon="⚡" title="Action Items" accentColor="#b45309"><ActionItemsTable items={mn.actionItems} setItems={setActionItems}/></Section>
+      <Section icon="🔒" title="Decisions Made" accentColor="#065f46"><BulletList items={mn.decisions} setItems={setDecisions} placeholder="Describe a decision made during the meeting…" addLabel="Add decision" accentColor="#065f46" emptyFn={emptyDecision}/></Section>
+      <Section icon="❓" title="Pending Questions & Concerns" accentColor="#7030A0"><QuestionsTable items={mn.questions} setItems={setQuestions}/></Section>
+      <Section icon="🗒️" title="General Notes" accentColor="#374151"><TA value={mn.generalNotes} onChange={setGeneralNotes} placeholder="Any additional notes or follow-ups from the meeting…" rows={4}/></Section>
     </div>
   );
 }
@@ -548,9 +563,14 @@ export default function App() {
     return ()=>clearInterval(interval);
   }, [dbStatus]);
 
-  function updWeek(field,val) {
-    setWeeks(p=>p.map(w=>w.id===activeWeekId?{...w,[field]:val}:w));
-  }
+  const activeWeekIdRef = useRef(activeWeekId);
+  activeWeekIdRef.current = activeWeekId;
+  const updWeek = useCallback((field,val) => {
+    setWeeks(p=>p.map(w=>w.id===activeWeekIdRef.current?{...w,[field]:val}:w));
+  }, []);
+
+  const setShortRows = useCallback(v=>setWeeks(p=>p.map(w=>w.id===activeWeekIdRef.current?{...w,shortRows:typeof v==="function"?v(w.shortRows):v}:w)), []);
+  const setLongRows  = useCallback(v=>setWeeks(p=>p.map(w=>w.id===activeWeekIdRef.current?{...w,longRows: typeof v==="function"?v(w.longRows):v}:w)), []);
 
   function handleCreate({date,carryShort,carryLong,skipDone}) {
     function copy(rows) {
@@ -646,8 +666,8 @@ export default function App() {
           {tab==="tracker"&&(
             <div>
               {!isLatest&&(<div style={{background:"#fef3c7",border:"1.5px solid #f59e0b",borderRadius:8,padding:"10px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}><span>⚠️</span><span style={{fontSize:13,color:"#92400e",fontWeight:500}}>Viewing past week ({formatDate(activeWeek.date)}).</span><button onClick={()=>setActiveWeekId(weeks[weeks.length-1].id)} style={{marginLeft:"auto",padding:"5px 12px",background:"#f59e0b",border:"none",borderRadius:6,color:"#fff",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Latest Week</button></div>)}
-              <GoalTable title="SHORT-TERM GOALS — This Week's Tasks" titleBg="#2E75B6" accentBg="#fefce8" rows={activeWeek.shortRows} setRows={v=>updWeek("shortRows",typeof v==="function"?v(activeWeek.shortRows):v)}/>
-              <GoalTable title="LONG-TERM GOALS — Milestones & Deliverables" titleBg="#1F3864" accentBg="#f0fdf4" rows={activeWeek.longRows} setRows={v=>updWeek("longRows",typeof v==="function"?v(activeWeek.longRows):v)}/>
+              <GoalTable title="SHORT-TERM GOALS — This Week's Tasks" titleBg="#2E75B6" accentBg="#fefce8" rows={activeWeek.shortRows} setRows={setShortRows}/>
+              <GoalTable title="LONG-TERM GOALS — Milestones & Deliverables" titleBg="#1F3864" accentBg="#f0fdf4" rows={activeWeek.longRows} setRows={setLongRows}/>
             </div>
           )}
 
