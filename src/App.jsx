@@ -98,7 +98,8 @@ const MEMBER_COLORS = [
 ];
 
 function getMeetingDates() {
-  const dates = []; let d = new Date(2026,1,15);
+  // Meeting rotation should start the week of Feb 22, 2026
+  const dates = []; let d = new Date(2026,1,22);
   const end = new Date(2026,5,30);
   while (d <= end) { dates.push(new Date(d)); d.setDate(d.getDate()+7); }
   return dates;
@@ -158,7 +159,8 @@ function emptyMeetingNotes() {
 }
 
 function makeInitWeeks() {
-  return [{ id:uid(), date:"2026-02-15", shortRows:makeRows(3), longRows:makeRows(3), meetingNotes:emptyMeetingNotes() }];
+  // First tracked week should align with the rotation start
+  return [{ id:uid(), date:"2026-02-22", shortRows:makeRows(3), longRows:makeRows(3), meetingNotes:emptyMeetingNotes() }];
 }
 
 function formatDate(iso) {
@@ -414,12 +416,24 @@ function MeetingNotesTab({ week, updWeek }) {
     updWeek("meetingNotes",{...mnRef.current,[field]:val});
   }, [updWeek]);
 
-  const setAgendaItems  = useCallback(v=>upd("agendaItems",  typeof v==="function"?v(mnRef.current.agendaItems):v),  [upd]);
+  const setAgendaItems  = useCallback(v=>{
+    const cur = Array.isArray(mnRef.current.agendaItems) ? mnRef.current.agendaItems : [];
+    upd("agendaItems", typeof v==="function" ? v(cur) : v);
+  }, [upd]);
   const setShortRecap   = useCallback(v=>upd("shortTaskRecap",v), [upd]);
   const setLongRecap    = useCallback(v=>upd("longGoalRecap",v),  [upd]);
-  const setActionItems  = useCallback(v=>upd("actionItems",  typeof v==="function"?v(mnRef.current.actionItems):v),  [upd]);
-  const setDecisions    = useCallback(v=>upd("decisions",    typeof v==="function"?v(mnRef.current.decisions):v),    [upd]);
-  const setQuestions    = useCallback(v=>upd("questions",    typeof v==="function"?v(mnRef.current.questions):v),    [upd]);
+  const setActionItems  = useCallback(v=>{
+    const cur = Array.isArray(mnRef.current.actionItems) ? mnRef.current.actionItems : [];
+    upd("actionItems", typeof v==="function" ? v(cur) : v);
+  }, [upd]);
+  const setDecisions    = useCallback(v=>{
+    const cur = Array.isArray(mnRef.current.decisions) ? mnRef.current.decisions : [];
+    upd("decisions", typeof v==="function" ? v(cur) : v);
+  }, [upd]);
+  const setQuestions    = useCallback(v=>{
+    const cur = Array.isArray(mnRef.current.questions) ? mnRef.current.questions : [];
+    upd("questions", typeof v==="function" ? v(cur) : v);
+  }, [upd]);
   const setGeneralNotes = useCallback(v=>upd("generalNotes",v), [upd]);
   const setTime         = useCallback(v=>upd("time",v),      [upd]);
   const setLocation     = useCallback(v=>upd("location",v),  [upd]);
@@ -434,7 +448,8 @@ function MeetingNotesTab({ week, updWeek }) {
   const metaInput={border:"1.5px solid #cbd5e1",borderRadius:7,padding:"7px 10px",fontSize:13,fontFamily:"inherit",outline:"none",transition:"border-color 0.12s",width:"100%",boxSizing:"border-box"};
   return (
     <div style={{maxWidth:960,margin:"0 auto"}}>
-      <div style={card({marginBottom:20})}>
+      {/* Allow dropdown menus (attendees, etc.) to overflow above the next section */}
+      <div style={card({marginBottom:20, overflow:"visible"})}>
         <div style={sectionHead("#1F3864")}><span style={{fontSize:16}}>📝</span><span style={{fontSize:15,fontWeight:800,color:"#fff"}}>Meeting Notes</span><span style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginLeft:4}}>— Week of {formatDate(week.date)}</span></div>
         <div style={{padding:"18px 20px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
           <div><span style={labelStyle}>Meeting Time</span><input value={mn.time} onChange={e=>setTime(e.target.value)} placeholder="e.g. 2:00 PM EST" style={metaInput} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></div>
