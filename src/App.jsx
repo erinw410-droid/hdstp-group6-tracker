@@ -63,6 +63,8 @@ const THEMES = {
     name: "Ponyo (Light)",
     vars: {
       "--ink": "#4C413F",
+      "--text": "#4C413F",
+      "--muted": "#5A6F80",
       "--slate": "#5A6F80",
       "--primary": "#278B9A",
       "--accent": "#E75B64",
@@ -78,16 +80,18 @@ const THEMES = {
     id: "ponyoDark",
     name: "Ponyo (Dark)",
     vars: {
-      "--ink": "#F7EFEA",
-      "--slate": "#C9D4DF",
-      "--primary": "#7FD2DA",
-      "--accent": "#FF9AA2",
-      "--coral": "#FFB199",
-      "--gold": "#F2D06B",
-      "--sand": "#3B2F2B",
-      "--surface": "#1C1716",
-      "--surface2": "#241E1C",
-      "--border": "#3A2F2B",
+      "--ink": "#F6F2ED",
+      "--text": "#F6F2ED",
+      "--slate": "#D6CEC6",
+      "--muted": "#D6CEC6",
+      "--primary": "#278B9A",
+      "--accent": "#E75B64",
+      "--coral": "#DE7862",
+      "--gold": "#D8AF39",
+      "--sand": "#E8C4A2",
+      "--surface": "#121110",
+      "--surface2": "#1A1817",
+      "--border": "#2F2B28",
     },
   },
   classic: {
@@ -95,6 +99,8 @@ const THEMES = {
     name: "Classic",
     vars: {
       "--ink": "#1f2937",
+      "--text": "#1f2937",
+      "--muted": "#64748b",
       "--slate": "#64748b",
       "--primary": "#2563eb",
       "--accent": "#ef4444",
@@ -449,7 +455,7 @@ function PortalMenu({ open, anchorRef, children }) {
 }
 
 // ─── Style helpers ────────────────────────────────────────────────
-const card = (extra={}) => ({ background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:10, overflow:"hidden", ...extra });
+const card = (extra={}) => ({ background:"var(--surface2)", border:"1.5px solid #e2e8f0", borderRadius:10, overflow:"hidden", ...extra });
 const sectionHead = (bg) => ({ background:bg, padding:"12px 18px", display:"flex", alignItems:"center", gap:10 });
 
 // ─── Text area ────────────────────────────────────────────────────
@@ -494,7 +500,7 @@ function MultiSelect({ options, value, onChange, disabled }) {
         {!disabled&&<span style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",color:"#94a3b8",fontSize:9,pointerEvents:"none"}}>{open?"▲":"▼"}</span>}
       </div>
       <PortalMenu open={open} anchorRef={anchorRef}>
-        <div style={{background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
+        <div style={{background:"var(--surface2)",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
         {options.map((opt,i)=>{
           const canonOpt = normalizeMemberName(opt);
           const sel = value.map(normalizeMemberName).includes(canonOpt);
@@ -526,7 +532,7 @@ function SingleSelect({ options, value, onChange, colorMap, disabled, placeholde
         {!disabled&&<span style={{position:"absolute",right:6,color:"#94a3b8",fontSize:9}}>{open?"▲":"▼"}</span>}
       </div>
       <PortalMenu open={open} anchorRef={anchorRef}>
-        <div style={{background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
+        <div style={{background:"var(--surface2)",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
           {options.map(opt=>{const c=colorMap?.[opt];const sel=value===opt;return(<div key={opt} onClick={()=>{ const next = (allowClear && value===opt) ? "" : opt; onChange(next); setOpen(false); }} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>{sel&&<span style={{color:"var(--primary)",fontSize:10}}>✓</span>}<span style={{background:c?.bg||"transparent",color:c?.text||"#374151",borderRadius:4,padding:c?"2px 8px":0,fontSize:13,fontWeight:sel?600:400}}>{opt}</span></div>);})}
         </div>
       </PortalMenu>
@@ -792,7 +798,7 @@ function NewWeekModal({ currentWeek, onConfirm, onCancel }) {
   const Check=({val,set,label})=>(<label style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}><div onClick={()=>set(v=>!v)} style={{width:18,height:18,borderRadius:4,border:"1.5px solid",borderColor:val?"var(--primary)":"#cbd5e1",background:val?"var(--primary)":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>{val&&<span style={{color:"#fff",fontSize:11,fontWeight:800}}>✓</span>}</div><span style={{fontSize:13,color:"#374151"}}>{label}</span></label>);
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
-      <div style={{background:"#fff",borderRadius:16,padding:32,width:440,boxShadow:"0 24px 60px rgba(0,0,0,0.22)"}}>
+      <div style={{background:"var(--surface2)",borderRadius:16,padding:32,width:440,boxShadow:"0 24px 60px rgba(0,0,0,0.22)"}}>
         <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:"var(--ink)"}}>Create New Week</h2>
         <p style={{margin:"0 0 22px",fontSize:13,color:"#64748b"}}>Saves the current week and starts a fresh tracker and meeting notes.</p>
         <label style={{display:"block",marginBottom:20}}><span style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>New Week Start Date</span><input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:"100%",border:"1.5px solid #cbd5e1",borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></label>
@@ -801,7 +807,7 @@ function NewWeekModal({ currentWeek, onConfirm, onCancel }) {
         <Check val={carryLong} set={setCarryLong} label="Long-Term Goals (Milestones)"/>
         <Check val={skipDone} set={setSkipDone} label="Skip completed tasks when copying"/>
         <div style={{display:"flex",gap:10,marginTop:24}}>
-          <button onClick={onCancel} style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:8,background:"#fff",color:"#374151",fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={onCancel} style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:8,background:"var(--surface2)",color:"#374151",fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
           <button onClick={()=>onConfirm({date,carryShort,carryLong,skipDone})} style={{flex:2,padding:"11px",border:"none",borderRadius:8,background:"var(--primary)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Create Week →</button>
         </div>
       </div>
@@ -1039,7 +1045,7 @@ export default function App() {
   }[saveStatus];
 
   return (
-    <div style={{minHeight:"100vh",background:"var(--surface)",fontFamily:"Helvetica, Arial, sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"var(--surface)",color:"var(--text)",fontFamily:"Helvetica, Arial, sans-serif"}}>
       {showModal&&<NewWeekModal currentWeek={activeWeek} onConfirm={handleCreate} onCancel={()=>setShowModal(false)}/>}
 
       {/* ── Header ── */}
@@ -1071,7 +1077,7 @@ export default function App() {
                     <span>📅</span><span>Week of {formatDate(activeWeek.date)}</span><span style={{fontSize:9}}>{showWeekNav?"▲":"▼"}</span>
                   </button>
                   {showWeekNav&&(
-                    <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,0.14)",overflow:"hidden",zIndex:500,minWidth:230}}>
+                    <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,boxShadow:"0 8px 28px rgba(0,0,0,0.14)",overflow:"hidden",zIndex:500,minWidth:230}}>
                       <div style={{padding:"8px 14px",fontSize:10,fontWeight:700,color:"#9ca3af",letterSpacing:"0.06em",textTransform:"uppercase",background:"#f9fafb",borderBottom:"1px solid #f1f5f9"}}>Saved Weeks</div>
                       {[...weeks].reverse().map(w=>(
                         <div
@@ -1095,7 +1101,7 @@ export default function App() {
                               disabled={weeks.length<=1}
                               style={{
                                 border:"1px solid #e2e8f0",
-                                background:"#fff",
+                                background:"var(--surface2)",
                                 color: weeks.length<=1 ? "#cbd5e1" : "#ef4444",
                                 borderRadius:7,
                                 padding:"4px 8px",
@@ -1140,7 +1146,7 @@ export default function App() {
                 </select>
 
                 {isLatest
-                  ? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"#fff",border:"none",borderRadius:8,color:"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
+                  ? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"var(--surface2)",border:"none",borderRadius:8,color:"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
                   : <button onClick={()=>setActiveWeekId(weeks[weeks.length-1].id)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.12)",border:"1.5px solid rgba(255,255,255,0.22)",borderRadius:8,color:"rgba(255,255,255,0.8)",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>← Latest</button>
                 }
               </div>
@@ -1179,9 +1185,9 @@ export default function App() {
             <div>
               <div style={{marginBottom:20}}><h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:"var(--ink)"}}>Meeting Rotation</h2><p style={{margin:0,color:"#64748b",fontSize:14}}>Leader rotates A→Z · Notetaker rotates Z→A · Both cycle every 6 weeks · 20 meetings total</p></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24}}>
-                {["Leader (A→Z)","Notetaker (Z→A)"].map((label,li)=>(<div key={label} style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:li===0?"var(--primary)":"var(--accent)",padding:"12px 16px"}}><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{label}</span></div>{(li===0?LEADERS_ASC:NOTETAKERS_DESC).map((m,i)=>(<div key={m} style={{padding:"8px 16px",fontSize:13,display:"flex",alignItems:"center",gap:10,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><span style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",background:li===0?"#dbeafe":"#ede9fe",color:li===0?"#1e40af":"#5b21b6",flexShrink:0}}>{i+1}</span><span style={{fontWeight:500}}>{m}</span></div>))}</div>))}
+                {["Leader (A→Z)","Notetaker (Z→A)"].map((label,li)=>(<div key={label} style={{background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:li===0?"var(--primary)":"var(--accent)",padding:"12px 16px"}}><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{label}</span></div>{(li===0?LEADERS_ASC:NOTETAKERS_DESC).map((m,i)=>(<div key={m} style={{padding:"8px 16px",fontSize:13,display:"flex",alignItems:"center",gap:10,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><span style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",background:li===0?"#dbeafe":"#ede9fe",color:li===0?"#1e40af":"#5b21b6",flexShrink:0}}>{i+1}</span><span style={{fontWeight:500}}>{m}</span></div>))}</div>))}
               </div>
-              <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
+              <div style={{background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
                   <thead><tr style={{background:"var(--ink)"}}>{["Wk","Date","Meeting Leader","Notetaker"].map(h=>(<th key={h} style={{padding:"11px 14px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"left",letterSpacing:"0.05em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead>
                   <tbody>{MEETING_DATES.map((dt,wi)=>{const idx=wi%6;const now=new Date();now.setHours(0,0,0,0);const dtc=new Date(dt);dtc.setHours(0,0,0,0);const isThis=dtc.getTime()===now.getTime();const isPast=dtc<now&&!isThis;return(<tr key={wi} style={{background:isThis?"#eff6ff":wi%2===0?"#f8fafc":"#fff",borderLeft:isThis?"3px solid var(--primary)":"3px solid transparent"}}><td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:isPast?"#9ca3af":"var(--ink)",borderBottom:"1px solid #f1f5f9"}}>{wi+1}</td><td style={{padding:"10px 14px",fontSize:13,color:isPast?"#9ca3af":"#374151",borderBottom:"1px solid #f1f5f9",whiteSpace:"nowrap"}}>{dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{isThis&&<span style={{marginLeft:8,background:"var(--primary)",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:4,fontWeight:700}}>THIS WEEK</span>}</td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}>
@@ -1234,12 +1240,12 @@ export default function App() {
 
           {tab==="cover"&&(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-              <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--primary)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Team Members</span></div>{MEMBERS.map((m,i)=>{const col=MEMBER_COLORS[i%MEMBER_COLORS.length];const parts=String(m||"").trim().split(/\s+/);const first=parts[0]||"";const last=parts.length>1?parts[parts.length-1]:"";const initials=(first[0]||"")+(last[0]||"");return(<div key={m} style={{padding:"12px 20px",display:"flex",alignItems:"center",gap:12,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><div style={{width:36,height:36,borderRadius:"50%",background:col.bg,color:col.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{initials}</div><span style={{fontWeight:600,fontSize:14,color:"var(--ink)"}}>{m}</span></div>);})}</div>
+              <div style={{background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--primary)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Team Members</span></div>{MEMBERS.map((m,i)=>{const col=MEMBER_COLORS[i%MEMBER_COLORS.length];const parts=String(m||"").trim().split(/\s+/);const first=parts[0]||"";const last=parts.length>1?parts[parts.length-1]:"";const initials=(first[0]||"")+(last[0]||"");return(<div key={m} style={{padding:"12px 20px",display:"flex",alignItems:"center",gap:12,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><div style={{width:36,height:36,borderRadius:"50%",background:col.bg,color:col.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{initials}</div><span style={{fontWeight:600,fontSize:14,color:"var(--ink)"}}>{m}</span></div>);})}</div>
               <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--ink)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Status Guide</span></div>{STATUSES.map((s,i)=>{const c=STATUS_COLORS[s];return(<div key={s} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{s}</span></div>);})}</div>
-                <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--ink)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Priority Guide</span></div>{PRIORITIES.map((p,i)=>{const c=PRIORITY_COLORS[p];return(<div key={p} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{p}</span></div>);})}</div>
+                <div style={{background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--ink)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Status Guide</span></div>{STATUSES.map((s,i)=>{const c=STATUS_COLORS[s];return(<div key={s} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{s}</span></div>);})}</div>
+                <div style={{background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--ink)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Priority Guide</span></div>{PRIORITIES.map((p,i)=>{const c=PRIORITY_COLORS[p];return(<div key={p} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{p}</span></div>);})}</div>
               </div>
-              <div style={{gridColumn:"1 / -1",background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
+              <div style={{gridColumn:"1 / -1",background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                 <div style={{background:"#0f766e",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span style={{color:"#fff",fontWeight:800,fontSize:15}}>📁 Shared Resources</span>
                 </div>
@@ -1256,7 +1262,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{gridColumn:"1 / -1",background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--primary)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>CRediT Contribution Categories</span></div><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{background:"#f1f5f9"}}><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase",width:220}}>Category</th><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase"}}>Definition</th></tr></thead><tbody>{CATEGORIES.map((cat,i)=>(<tr key={cat} style={{background:i%2===0?"#f8fafc":"#fff"}}><td style={{padding:"12px 16px",fontSize:13,fontWeight:700,color:"var(--ink)",borderBottom:"1px solid #f1f5f9",verticalAlign:"top"}}>{cat}</td><td style={{padding:"12px 16px",fontSize:13,color:"#475569",borderBottom:"1px solid #f1f5f9",lineHeight:1.6}}>{CAT_DESC[cat]}</td></tr>))}</tbody></table></div>
+              <div style={{gridColumn:"1 / -1",background:"var(--surface2)",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--primary)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>CRediT Contribution Categories</span></div><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{background:"#f1f5f9"}}><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase",width:220}}>Category</th><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase"}}>Definition</th></tr></thead><tbody>{CATEGORIES.map((cat,i)=>(<tr key={cat} style={{background:i%2===0?"#f8fafc":"#fff"}}><td style={{padding:"12px 16px",fontSize:13,fontWeight:700,color:"var(--ink)",borderBottom:"1px solid #f1f5f9",verticalAlign:"top"}}>{cat}</td><td style={{padding:"12px 16px",fontSize:13,color:"#475569",borderBottom:"1px solid #f1f5f9",lineHeight:1.6}}>{CAT_DESC[cat]}</td></tr>))}</tbody></table></div>
             </div>
           )}
         </div>
