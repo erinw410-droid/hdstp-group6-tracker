@@ -76,7 +76,6 @@ const THEMES = {
       "--border": "#E7DDD6",
     },
   },
-  },
   classic: {
     id: "classic",
     name: "Classic",
