@@ -1109,8 +1109,6 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                {isLatest
-                  
                 <select
                   value={themeId}
                   onChange={(e)=>setThemeId(e.target.value)}
@@ -1136,7 +1134,8 @@ export default function App() {
                   ))}
                 </select>
 
-? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"#fff",border:"none",borderRadius:8,color:"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
+                {isLatest
+                  ? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"#fff",border:"none",borderRadius:8,color:"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
                   : <button onClick={()=>setActiveWeekId(weeks[weeks.length-1].id)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.12)",border:"1.5px solid rgba(255,255,255,0.22)",borderRadius:8,color:"rgba(255,255,255,0.8)",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>← Latest</button>
                 }
               </div>
