@@ -55,6 +55,59 @@ async function initRow(data) {
   });
 }
 
+
+// ─── Themes (Ghibli PonyoMedium + options) ─────────────────────────
+const THEMES = {
+  ponyo: {
+    id: "ponyo",
+    name: "Ponyo (Light)",
+    vars: {
+      "--ink": "#4C413F",
+      "--slate": "#5A6F80",
+      "--primary": "#278B9A",
+      "--accent": "#E75B64",
+      "--coral": "#DE7862",
+      "--gold": "#D8AF39",
+      "--sand": "#E8C4A2",
+      "--surface": "#FFF9F6",
+      "--surface2": "#FFFFFF",
+      "--border": "#E7DDD6",
+    },
+  },
+  ponyoDark: {
+    id: "ponyoDark",
+    name: "Ponyo (Dark)",
+    vars: {
+      "--ink": "#F7EFEA",
+      "--slate": "#C9D4DF",
+      "--primary": "#7FD2DA",
+      "--accent": "#FF9AA2",
+      "--coral": "#FFB199",
+      "--gold": "#F2D06B",
+      "--sand": "#3B2F2B",
+      "--surface": "#1C1716",
+      "--surface2": "#241E1C",
+      "--border": "#3A2F2B",
+    },
+  },
+  classic: {
+    id: "classic",
+    name: "Classic",
+    vars: {
+      "--ink": "#1f2937",
+      "--slate": "#64748b",
+      "--primary": "#2563eb",
+      "--accent": "#ef4444",
+      "--coral": "#f97316",
+      "--gold": "#f59e0b",
+      "--sand": "#e2e8f0",
+      "--surface": "#f8fafc",
+      "--surface2": "#ffffff",
+      "--border": "#e2e8f0",
+    },
+  },
+};
+
 // ─── Constants ────────────────────────────────────────────────────
 const MEMBERS = [
   "Quentin Coppola",
@@ -66,14 +119,14 @@ const MEMBERS = [
 ];
 
 // Normalize member names to "First Last" everywhere.
-// Handles legacy formats like "Last, First".
+// Handles legacy formats like "First Last".
 function normalizeMemberName(v) {
   const s = String(v || "").trim();
   if (!s) return "";
   // Already "First Last"
   if (MEMBERS.includes(s)) return s;
 
-  // Legacy "Last, First"
+  // Legacy "First Last"
   if (s.includes(",")) {
     const [lastRaw, firstRaw] = s.split(",");
     const first = (firstRaw || "").trim();
@@ -770,6 +823,11 @@ export default function App() {
   const [leaderOverrides,setLeaderOverrides] = useState({});
   const [notetakerOverrides,setNotetakerOverrides] = useState({});
 
+  const [themeId, setThemeId] = useState(() => {
+    try { return localStorage.getItem("themeId") || "ponyo"; } catch(e) { return "ponyo"; }
+  });
+
+
   // ── Multi-user Tier 1: prevent clobbering while someone is typing ──
   const [serverUpdatedAt, setServerUpdatedAt] = useState(null);
   const serverUpdatedAtRef = useRef(null);
@@ -976,11 +1034,11 @@ export default function App() {
   }[saveStatus];
 
   return (
-    <div style={{minHeight:"100vh",background:"#fff5f1",fontFamily:"Helvetica, Arial, sans-serif","--ink":"#4C413F","--slate":"#5A6F80","--primary":"#278B9A","--accent":"#E75B64","--coral":"#DE7862","--gold":"#D8AF39","--sand":"#E8C4A2"}}>
+    <div style={{minHeight:"100vh",background:"var(--surface)",fontFamily:"Helvetica, Arial, sans-serif"}}>
       {showModal&&<NewWeekModal currentWeek={activeWeek} onConfirm={handleCreate} onCancel={()=>setShowModal(false)}/>}
 
       {/* ── Header ── */}
-      <div style={{background:"linear-gradient(135deg,var(--ink) 0%,var(--primary) 100%)",padding:"22px 28px 0",boxShadow:"0 4px 24px rgba(31,56,100,0.25)"}}>
+      <div style={{background:"linear-gradient(135deg,var(--ink) 0%,var(--coral) 100%)",padding:"22px 28px 0",boxShadow:"0 4px 24px rgba(31,56,100,0.25)"}}>
         <div style={{maxWidth:1400,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18}}>
             <div>
@@ -990,7 +1048,7 @@ export default function App() {
                 {dbStatus==="error"   && <span style={{fontSize:10,background:"#fee2e2",color:"#991b1b",borderRadius:4,padding:"1px 7px"}}>⚠ DB Error — running offline</span>}
                 {dbStatus==="ok"      && <span style={{fontSize:10,color:saveIndicator.color,fontWeight:600}}>{saveIndicator.text}</span>}
                 {hasRemoteUpdate && (
-                  <span style={{fontSize:10,color:\"var(--accent)\",fontWeight:700,marginLeft:10}}>
+                  <span style={{fontSize:10,color:"var(--accent)",fontWeight:700,marginLeft:10}}>
                     Someone else updated.
                   </span>
                 )}
@@ -1052,7 +1110,33 @@ export default function App() {
                   )}
                 </div>
                 {isLatest
-                  ? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"#fff",border:"none",borderRadius:8,color:"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
+                  
+                <select
+                  value={themeId}
+                  onChange={(e)=>setThemeId(e.target.value)}
+                  style={{
+                    padding:"8px 12px",
+                    background:"rgba(255,255,255,0.12)",
+                    border:"1.5px solid rgba(255,255,255,0.22)",
+                    borderRadius:8,
+                    color:"#fff",
+                    fontSize:13,
+                    fontWeight:600,
+                    cursor:"pointer",
+                    fontFamily:"inherit",
+                    outline:"none",
+                    maxWidth:180
+                  }}
+                  title="Theme"
+                >
+                  {Object.values(THEMES).map(t=>(
+                    <option key={t.id} value={t.id} style={{color:"#111"}}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+
+? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"#fff",border:"none",borderRadius:8,color:"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
                   : <button onClick={()=>setActiveWeekId(weeks[weeks.length-1].id)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.12)",border:"1.5px solid rgba(255,255,255,0.22)",borderRadius:8,color:"rgba(255,255,255,0.8)",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>← Latest</button>
                 }
               </div>
