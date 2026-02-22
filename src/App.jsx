@@ -27,15 +27,24 @@ async function sbFetch(path, opts={}) {
 }
 
 async function loadState() {
-  const rows = await sbFetch(`${TABLE}?id=eq.${ROW_ID}&select=data`);
-  return rows && rows.length > 0 ? rows[0].data : null;
+  const rows = await sbFetch(`${TABLE}?id=eq.${ROW_ID}&select=data,updated_at`);
+  if (!rows || rows.length === 0) return null;
+  return { data: rows[0].data, updated_at: rows[0].updated_at };
 }
 
-async function saveState(data) {
-  await sbFetch(`${TABLE}?id=eq.${ROW_ID}`, {
+// Optimistic concurrency: if expectedUpdatedAt is provided, only update if server row
+// has not changed since our last pull.
+async function saveState(data, expectedUpdatedAt=null) {
+  const q = expectedUpdatedAt
+    ? `${TABLE}?id=eq.${ROW_ID}&updated_at=eq.${encodeURIComponent(expectedUpdatedAt)}`
+    : `${TABLE}?id=eq.${ROW_ID}`;
+  const res = await sbFetch(q, {
     method: "PATCH",
     body: JSON.stringify({ data }),
   });
+  // PostgREST returns [] if no rows matched the filter (i.e., conflict)
+  const row = Array.isArray(res) && res.length > 0 ? res[0] : null;
+  return row ? row.updated_at : null;
 }
 
 async function initRow(data) {
@@ -395,7 +404,7 @@ function TA({ value, onChange, placeholder, rows=3 }) {
   return (
     <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows}
       style={{width:"100%",border:"1.5px solid #cbd5e1",borderRadius:7,padding:"8px 10px",fontSize:13,resize:"vertical",fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color 0.12s",lineHeight:1.6,color:"#374151"}}
-      onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
+      onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
   );
 }
 
@@ -415,7 +424,7 @@ function MultiSelect({ options, value, onChange, disabled }) {
   }
   return (
     <div ref={ref} style={{position:"relative",width:"100%"}}>
-      <div ref={anchorRef} onClick={()=>!disabled&&setOpen(o=>!o)} style={{minHeight:34,padding:"3px 24px 3px 6px",border:"1.5px solid",borderColor:open?"#2E75B6":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:disabled?"#f8fafc":"#fff",position:"relative",display:"flex",flexWrap:"wrap",gap:3,alignItems:"center",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
+      <div ref={anchorRef} onClick={()=>!disabled&&setOpen(o=>!o)} style={{minHeight:34,padding:"3px 24px 3px 6px",border:"1.5px solid",borderColor:open?"var(--primary)":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:disabled?"#f8fafc":"#fff",position:"relative",display:"flex",flexWrap:"wrap",gap:3,alignItems:"center",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
         {value.length===0 ? <span style={{color:"#94a3b8",fontSize:12}}>Select members…</span>
           : value.map(v=>{
               const canon = normalizeMemberName(v);
@@ -440,7 +449,7 @@ function MultiSelect({ options, value, onChange, disabled }) {
           const name = canonOpt;
           return(
             <div key={opt} onClick={()=>toggle(canonOpt)} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:9,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background=sel?"#e6f0ff":"#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>
-              <div style={{width:15,height:15,borderRadius:3,border:"1.5px solid",borderColor:sel?"#2E75B6":"#d1d5db",background:sel?"#2E75B6":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}</div>
+              <div style={{width:15,height:15,borderRadius:3,border:"1.5px solid",borderColor:sel?"var(--primary)":"#d1d5db",background:sel?"var(--primary)":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}</div>
               <span style={{background:sel?col.bg:"transparent",color:sel?col.text:"#374151",borderRadius:4,padding:sel?"1px 7px":0,fontSize:13,fontWeight:sel?600:400}}>{name}</span>
             </div>
           );
@@ -459,13 +468,13 @@ function SingleSelect({ options, value, onChange, colorMap, disabled, placeholde
   const col = colorMap?.[value];
   return (
     <div ref={ref} style={{position:"relative",width:"100%"}}>
-      <div ref={anchorRef} onClick={()=>!disabled&&setOpen(o=>!o)} style={{height:34,padding:"0 24px 0 9px",border:"1.5px solid",borderColor:open?"#2E75B6":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:col?.bg||(disabled?"#f8fafc":"#fff"),display:"flex",alignItems:"center",position:"relative",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
+      <div ref={anchorRef} onClick={()=>!disabled&&setOpen(o=>!o)} style={{height:34,padding:"0 24px 0 9px",border:"1.5px solid",borderColor:open?"var(--primary)":"#cbd5e1",borderRadius:6,cursor:disabled?"default":"pointer",background:col?.bg||(disabled?"#f8fafc":"#fff"),display:"flex",alignItems:"center",position:"relative",boxShadow:open?"0 0 0 3px rgba(46,117,182,0.1)":"none",transition:"all 0.12s"}}>
         <span style={{fontSize:12,fontWeight:600,color:col?.text||"#374151",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{value||<span style={{color:"#94a3b8",fontWeight:400}}>{placeholder}</span>}</span>
         {!disabled&&<span style={{position:"absolute",right:6,color:"#94a3b8",fontSize:9}}>{open?"▲":"▼"}</span>}
       </div>
       <PortalMenu open={open} anchorRef={anchorRef}>
         <div style={{background:"#fff",border:"1.5px solid #cbd5e1",borderRadius:8,boxShadow:"0 8px 28px rgba(0,0,0,0.13)",overflow:"hidden"}}>
-          {options.map(opt=>{const c=colorMap?.[opt];const sel=value===opt;return(<div key={opt} onClick={()=>{ const next = (allowClear && value===opt) ? "" : opt; onChange(next); setOpen(false); }} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>{sel&&<span style={{color:"#2E75B6",fontSize:10}}>✓</span>}<span style={{background:c?.bg||"transparent",color:c?.text||"#374151",borderRadius:4,padding:c?"2px 8px":0,fontSize:13,fontWeight:sel?600:400}}>{opt}</span></div>);})}
+          {options.map(opt=>{const c=colorMap?.[opt];const sel=value===opt;return(<div key={opt} onClick={()=>{ const next = (allowClear && value===opt) ? "" : opt; onChange(next); setOpen(false); }} style={{padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:sel?"#f0f7ff":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background=sel?"#f0f7ff":"#fff"}>{sel&&<span style={{color:"var(--primary)",fontSize:10}}>✓</span>}<span style={{background:c?.bg||"transparent",color:c?.text||"#374151",borderRadius:4,padding:c?"2px 8px":0,fontSize:13,fontWeight:sel?600:400}}>{opt}</span></div>);})}
         </div>
       </PortalMenu>
     </div>
@@ -486,7 +495,7 @@ function GoalRow({ row, dimmed, accentBg, onUpd, onDel }) {
       <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle"}}>
         {dimmed
           ? <span style={{fontSize:13,color:"#6b7280",textDecoration:"line-through",display:"block",padding:"4px 0"}}>{row.description||"—"}</span>
-          : <textarea value={row.description} onChange={e=>onUpd(row.id,"description",e.target.value)} placeholder="Describe the goal or task…" rows={2} style={taStyle} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
+          : <textarea value={row.description} onChange={e=>onUpd(row.id,"description",e.target.value)} placeholder="Describe the goal or task…" rows={2} style={taStyle} onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
         }
       </td>
       <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:210}}><MultiSelect options={MEMBERS} value={row.assigned} onChange={v=>onUpd(row.id,"assigned",v)} disabled={dimmed}/></td>
@@ -496,7 +505,7 @@ function GoalRow({ row, dimmed, accentBg, onUpd, onDel }) {
       <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:185}}>
         {dimmed
           ? <span style={{fontSize:12,color:"#9ca3af"}}>{row.notes||"—"}</span>
-          : <textarea value={row.notes} onChange={e=>onUpd(row.id,"notes",e.target.value)} placeholder="Notes…" rows={2} style={taStyle} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
+          : <textarea value={row.notes} onChange={e=>onUpd(row.id,"notes",e.target.value)} placeholder="Notes…" rows={2} style={taStyle} onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/>
         }
       </td>
       <td style={{padding:"6px 4px",borderBottom:"1px solid #f1f5f9",verticalAlign:"middle",width:28,textAlign:"center"}}>
@@ -535,7 +544,7 @@ function GoalTable({ title, titleBg, accentBg, rows, setRows }) {
 }
 
 // ─── Agenda list ──────────────────────────────────────────────────
-function AgendaList({ items, setItems, accentColor="#2E75B6" }) {
+function AgendaList({ items, setItems, accentColor="var(--primary)" }) {
   const safeItems = Array.isArray(items) ? items : [];
   function upd(id,field,val) { setItems(p=>{ const arr = Array.isArray(p) ? p : []; return arr.map(x=>x.id===id?{...x,[field]:val}:x); }); }
   function del(id) { setItems(p=>{ const arr = Array.isArray(p) ? p : []; return arr.filter(x=>x.id!==id); }); }
@@ -560,7 +569,7 @@ function AgendaList({ items, setItems, accentColor="#2E75B6" }) {
 }
 
 // ─── Bullet list ──────────────────────────────────────────────────
-function BulletList({ items, setItems, placeholder, addLabel, accentColor="#2E75B6", emptyFn }) {
+function BulletList({ items, setItems, placeholder, addLabel, accentColor="var(--primary)", emptyFn }) {
   function upd(id,text) { setItems(p=>p.map(x=>x.id===id?{...x,text}:x)); }
   function del(id) { setItems(p=>p.filter(x=>x.id!==id)); }
   function add()   { setItems(p=>[...p, emptyFn?emptyFn():{id:uid(),text:""}]); }
@@ -588,7 +597,7 @@ function ActionItemsTable({ items, setItems }) {
               <td style={{padding:"6px 12px",fontSize:12,color:"#9ca3af",fontWeight:600,borderBottom:"1px solid #f1f5f9"}}>{i+1}</td>
               <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9"}}><TA value={a.task} onChange={v=>upd(a.id,"task",v)} placeholder="Describe the action item…" rows={1}/></td>
               <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",width:160}}><SingleSelect options={memberNames} value={a.owner} onChange={v=>upd(a.id,"owner",v)} placeholder="Assign…"/></td>
-              <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",width:120}}><input type="date" value={a.due} onChange={e=>upd(a.id,"due",e.target.value)} style={{border:"1.5px solid #cbd5e1",borderRadius:6,padding:"5px 7px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></td>
+              <td style={{padding:"6px 8px",borderBottom:"1px solid #f1f5f9",width:120}}><input type="date" value={a.due} onChange={e=>upd(a.id,"due",e.target.value)} style={{border:"1.5px solid #cbd5e1",borderRadius:6,padding:"5px 7px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></td>
               <td style={{padding:"6px 12px",borderBottom:"1px solid #f1f5f9",textAlign:"center"}}><div onClick={()=>upd(a.id,"done",!a.done)} style={{width:20,height:20,borderRadius:4,border:"1.5px solid",borderColor:a.done?"#10b981":"#d1d5db",background:a.done?"#10b981":"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",margin:"0 auto",transition:"all 0.12s"}}>{a.done&&<span style={{color:"#fff",fontSize:11,fontWeight:800}}>✓</span>}</div></td>
               <td style={{padding:"6px 4px",borderBottom:"1px solid #f1f5f9",textAlign:"center"}}><button onClick={()=>del(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#d1d5db",fontSize:14,padding:3,transition:"color 0.12s"}} onMouseEnter={e=>e.currentTarget.style.color="#ef4444"} onMouseLeave={e=>e.currentTarget.style.color="#d1d5db"}>✕</button></td>
             </tr>))}
@@ -630,7 +639,7 @@ function QuestionsTable({ items, setItems }) {
 }
 
 // ─── Section card ─────────────────────────────────────────────────
-function Section({ icon, title, accentColor="#2E75B6", children, badge }) {
+function Section({ icon, title, accentColor="var(--primary)", children, badge }) {
   // Use overflow: visible so dropdown menus (agenda categories, owners, etc.) are never clipped.
   return (
     <div style={card({marginBottom:20, overflow:"visible", position:"relative", zIndex:20})}>
@@ -645,13 +654,14 @@ function Section({ icon, title, accentColor="#2E75B6", children, badge }) {
 }
 
 // ─── Meeting Notes tab ────────────────────────────────────────────
-function MeetingNotesTab({ week, updWeek, leaderOverrides, notetakerOverrides }) {
+function MeetingNotesTab({ week, updWeek, leaderOverrides, notetakerOverrides, onEdit }) {
   const mn = week.meetingNotes;
   const mnRef = useRef(mn);
   mnRef.current = mn;
   const upd = useCallback((field,val) => {
+    try { onEdit && onEdit(); } catch(e) {}
     updWeek("meetingNotes",{...mnRef.current,[field]:val});
-  }, [updWeek]);
+  }, [updWeek, onEdit]);
 
   const setAgendaItems  = useCallback(v=>{
     const cur = Array.isArray(mnRef.current.agendaItems) ? mnRef.current.agendaItems : [];
@@ -689,10 +699,10 @@ function MeetingNotesTab({ week, updWeek, leaderOverrides, notetakerOverrides })
     <div style={{maxWidth:960,margin:"0 auto"}}>
       {/* Allow dropdown menus (attendees, etc.) to overflow above the next section */}
       <div style={card({marginBottom:20, overflow:"visible", position:"relative", zIndex:50})}>
-        <div style={sectionHead("#1F3864")}><span style={{fontSize:16}}>📝</span><span style={{fontSize:15,fontWeight:800,color:"#fff"}}>Meeting Notes</span><span style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginLeft:4}}>— Week of {formatDate(week.date)}</span></div>
+        <div style={sectionHead("var(--ink)")}><span style={{fontSize:16}}>📝</span><span style={{fontSize:15,fontWeight:800,color:"#fff"}}>Meeting Notes</span><span style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginLeft:4}}>— Week of {formatDate(week.date)}</span></div>
         <div style={{padding:"18px 20px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
-          <div><span style={labelStyle}>Meeting Time</span><input value={mn.time} onChange={e=>setTime(e.target.value)} placeholder="e.g. 2:00 PM EST" style={metaInput} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></div>
-          <div><span style={labelStyle}>Location / Link</span><div style={{display:"flex",flexDirection:"column",gap:4}}><input value={mn.location} onChange={e=>setLocation(e.target.value)} style={{...metaInput,fontSize:11,color:"#2E75B6"}} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/><div style={{fontSize:10,color:"#64748b",display:"flex",gap:12}}><span>ID: <strong>{ZOOM_ID}</strong></span><span>Passcode: <strong>{ZOOM_PASS}</strong></span></div></div></div>
+          <div><span style={labelStyle}>Meeting Time</span><input value={mn.time} onChange={e=>setTime(e.target.value)} placeholder="e.g. 2:00 PM EST" style={metaInput} onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></div>
+          <div><span style={labelStyle}>Location / Link</span><div style={{display:"flex",flexDirection:"column",gap:4}}><input value={mn.location} onChange={e=>setLocation(e.target.value)} style={{...metaInput,fontSize:11,color:"var(--primary)"}} onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/><div style={{fontSize:10,color:"#64748b",display:"flex",gap:12}}><span>ID: <strong>{ZOOM_ID}</strong></span><span>Passcode: <strong>{ZOOM_PASS}</strong></span></div></div></div>
           <div><span style={labelStyle}>Attendees</span><MultiSelect options={MEMBERS} value={mn.attendees} onChange={setAttendees}/></div>
         </div>
         <div style={{padding:"0 20px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
@@ -700,16 +710,16 @@ function MeetingNotesTab({ week, updWeek, leaderOverrides, notetakerOverrides })
           <div style={{background:"#f5f0ff",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Notetaker:</span><span style={{background:"#ede9fe",color:"#5b21b6",borderRadius:5,padding:"3px 10px",fontSize:12,fontWeight:700}}>{notetaker}</span></div>
         </div>
       </div>
-      <Section icon="📋" title="Agenda" accentColor="#2E75B6"><AgendaList items={mn.agendaItems} setItems={setAgendaItems} accentColor="#2E75B6"/></Section>
-      <Section icon="✅" title="This Week's Task Recap" accentColor="#2E75B6" badge={`${shortCompleted.length}/${week.shortRows.length} complete`}>
+      <Section icon="📋" title="Agenda" accentColor="var(--primary)"><AgendaList items={mn.agendaItems} setItems={setAgendaItems} accentColor="var(--primary)"/></Section>
+      <Section icon="✅" title="This Week's Task Recap" accentColor="var(--primary)" badge={`${shortCompleted.length}/${week.shortRows.length} complete`}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-          <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Active Tasks ({shortActive.length})</p>{shortActive.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No active tasks.</p>:shortActive.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f8fafc",borderRadius:7,borderLeft:"3px solid #2E75B6"}}><div style={{fontSize:13,fontWeight:600,color:"#1F3864",marginBottom:3}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.status&&<span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{r.status}</span>}</div></div>))}</div>
+          <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Active Tasks ({shortActive.length})</p>{shortActive.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No active tasks.</p>:shortActive.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f8fafc",borderRadius:7,borderLeft:"3px solid var(--primary)"}}><div style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:3}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.status&&<span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{r.status}</span>}</div></div>))}</div>
           <div><p style={{margin:"0 0 8px",fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.05em"}}>Completed ({shortCompleted.length})</p>{shortCompleted.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>Nothing completed yet.</p>:shortCompleted.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:7,borderLeft:"3px solid #10b981",opacity:0.8}}><div style={{fontSize:13,color:"#6b7280",textDecoration:"line-through"}}>{r.description||"—"}</div><div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:3}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600,opacity:0.7}}>{n}</span>);})}</div></div>))}</div>
         </div>
         <div><span style={labelStyle}>Additional notes on short-term tasks</span><TA value={mn.shortTaskRecap} onChange={setShortRecap} placeholder="Summarize progress, blockers, or key decisions…" rows={3}/></div>
       </Section>
-      <Section icon="🎯" title="Long-Term Goals Status" accentColor="#1F3864" badge={`${longCompleted.length}/${week.longRows.length} complete`}>
-        <div style={{marginBottom:16}}>{week.longRows.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No long-term goals set.</p>:week.longRows.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"10px 12px",background:r.status==="Complete"?"#f0fdf4":"#f8fafc",borderRadius:7,borderLeft:`3px solid ${r.status==="Complete"?"#10b981":r.status==="In Progress"?"#f59e0b":r.status==="On Hold"?"#ef4444":"#cbd5e1"}`,opacity:r.status==="Complete"?0.7:1}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}><div><div style={{fontSize:13,fontWeight:600,color:r.status==="Complete"?"#6b7280":"#1F3864",textDecoration:r.status==="Complete"?"line-through":"none",marginBottom:4}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled goal</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.category&&<span style={{background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px",fontSize:10}}>{r.category}</span>}</div></div><span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{r.status}</span></div></div>))}</div>
+      <Section icon="🎯" title="Long-Term Goals Status" accentColor="var(--ink)" badge={`${longCompleted.length}/${week.longRows.length} complete`}>
+        <div style={{marginBottom:16}}>{week.longRows.length===0?<p style={{margin:0,fontSize:13,color:"#9ca3af",fontStyle:"italic"}}>No long-term goals set.</p>:week.longRows.map(r=>(<div key={r.id} style={{marginBottom:8,padding:"10px 12px",background:r.status==="Complete"?"#f0fdf4":"#f8fafc",borderRadius:7,borderLeft:`3px solid ${r.status==="Complete"?"#10b981":r.status==="In Progress"?"#f59e0b":r.status==="On Hold"?"#ef4444":"#cbd5e1"}`,opacity:r.status==="Complete"?0.7:1}}><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}><div><div style={{fontSize:13,fontWeight:600,color:r.status==="Complete"?"#6b7280":"var(--ink)",textDecoration:r.status==="Complete"?"line-through":"none",marginBottom:4}}>{r.description||<em style={{color:"#9ca3af"}}>Untitled goal</em>}</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{r.assigned.map(a=>{const mi=MEMBERS.indexOf(normalizeMemberName(a));const col=MEMBER_COLORS[mi%MEMBER_COLORS.length];const n=normalizeMemberName(a);return(<span key={a} style={{background:col.bg,color:col.text,borderRadius:4,padding:"1px 6px",fontSize:10,fontWeight:600}}>{n}</span>);})}{r.category&&<span style={{background:"#f1f5f9",color:"#64748b",borderRadius:4,padding:"1px 6px",fontSize:10}}>{r.category}</span>}</div></div><span style={{background:STATUS_COLORS[r.status]?.bg,color:STATUS_COLORS[r.status]?.text,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{r.status}</span></div></div>))}</div>
         <div><span style={labelStyle}>Notes on milestone progress</span><TA value={mn.longGoalRecap} onChange={setLongRecap} placeholder="Highlight progress toward long-term goals, upcoming milestones, or changes in scope…" rows={3}/></div>
       </Section>
       <Section icon="⚡" title="Action Items" accentColor="#b45309"><ActionItemsTable items={mn.actionItems} setItems={setActionItems}/></Section>
@@ -726,20 +736,20 @@ function NewWeekModal({ currentWeek, onConfirm, onCancel }) {
   const [carryShort,setCarryShort]=useState(true);
   const [carryLong,setCarryLong]=useState(true);
   const [skipDone,setSkipDone]=useState(true);
-  const Check=({val,set,label})=>(<label style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}><div onClick={()=>set(v=>!v)} style={{width:18,height:18,borderRadius:4,border:"1.5px solid",borderColor:val?"#2E75B6":"#cbd5e1",background:val?"#2E75B6":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>{val&&<span style={{color:"#fff",fontSize:11,fontWeight:800}}>✓</span>}</div><span style={{fontSize:13,color:"#374151"}}>{label}</span></label>);
+  const Check=({val,set,label})=>(<label style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}><div onClick={()=>set(v=>!v)} style={{width:18,height:18,borderRadius:4,border:"1.5px solid",borderColor:val?"var(--primary)":"#cbd5e1",background:val?"var(--primary)":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>{val&&<span style={{color:"#fff",fontSize:11,fontWeight:800}}>✓</span>}</div><span style={{fontSize:13,color:"#374151"}}>{label}</span></label>);
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
       <div style={{background:"#fff",borderRadius:16,padding:32,width:440,boxShadow:"0 24px 60px rgba(0,0,0,0.22)"}}>
-        <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:"#1F3864"}}>Create New Week</h2>
+        <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:"var(--ink)"}}>Create New Week</h2>
         <p style={{margin:"0 0 22px",fontSize:13,color:"#64748b"}}>Saves the current week and starts a fresh tracker and meeting notes.</p>
-        <label style={{display:"block",marginBottom:20}}><span style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>New Week Start Date</span><input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:"100%",border:"1.5px solid #cbd5e1",borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor="#2E75B6"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></label>
+        <label style={{display:"block",marginBottom:20}}><span style={{fontSize:12,fontWeight:700,color:"#374151",display:"block",marginBottom:5}}>New Week Start Date</span><input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:"100%",border:"1.5px solid #cbd5e1",borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor="var(--primary)"} onBlur={e=>e.target.style.borderColor="#cbd5e1"}/></label>
         <p style={{fontSize:12,fontWeight:700,color:"#374151",margin:"0 0 8px"}}>Carry over to new week:</p>
         <Check val={carryShort} set={setCarryShort} label="Short-Term Goals"/>
         <Check val={carryLong} set={setCarryLong} label="Long-Term Goals (Milestones)"/>
         <Check val={skipDone} set={setSkipDone} label="Skip completed tasks when copying"/>
         <div style={{display:"flex",gap:10,marginTop:24}}>
           <button onClick={onCancel} style={{flex:1,padding:"11px",border:"1.5px solid #e2e8f0",borderRadius:8,background:"#fff",color:"#374151",fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <button onClick={()=>onConfirm({date,carryShort,carryLong,skipDone})} style={{flex:2,padding:"11px",border:"none",borderRadius:8,background:"#2E75B6",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Create Week →</button>
+          <button onClick={()=>onConfirm({date,carryShort,carryLong,skipDone})} style={{flex:2,padding:"11px",border:"none",borderRadius:8,background:"var(--primary)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Create Week →</button>
         </div>
       </div>
     </div>
@@ -760,6 +770,31 @@ export default function App() {
   const [leaderOverrides,setLeaderOverrides] = useState({});
   const [notetakerOverrides,setNotetakerOverrides] = useState({});
 
+  // ── Multi-user Tier 1: prevent clobbering while someone is typing ──
+  const [serverUpdatedAt, setServerUpdatedAt] = useState(null);
+  const serverUpdatedAtRef = useRef(null);
+  serverUpdatedAtRef.current = serverUpdatedAt;
+
+  const [hasRemoteUpdate, setHasRemoteUpdate] = useState(false);
+  const isEditingRef = useRef(false);
+  const editingWeekIdRef = useRef(null);
+  const lastEditAtRef = useRef(0);
+  const editClearTimer = useRef(null);
+
+  const markEditing = useCallback((weekId) => {
+    isEditingRef.current = true;
+    editingWeekIdRef.current = weekId;
+    lastEditAtRef.current = Date.now();
+    clearTimeout(editClearTimer.current);
+    editClearTimer.current = setTimeout(() => {
+      // If no edits in the last 1800ms, consider editing finished
+      if (Date.now() - lastEditAtRef.current >= 1800) {
+        isEditingRef.current = false;
+        editingWeekIdRef.current = null;
+      }
+    }, 2000);
+  }, []);
+
   // Ensure portal-rendered dropdowns match app typography
   useEffect(()=>{
     try {
@@ -774,7 +809,9 @@ export default function App() {
   useEffect(()=>{
     async function load() {
       try {
-        const data = await loadState();
+        const loaded = await loadState();
+        const data = loaded ? loaded.data : null;
+        if (loaded && loaded.updated_at) { setServerUpdatedAt(loaded.updated_at); }
         const norm = normalizeAndMigrateState(data);
         if (norm && norm.weeks && norm.weeks.length > 0) {
           setWeeks(norm.weeks);
@@ -803,7 +840,7 @@ export default function App() {
     load();
   }, []);
 
-  // ── Auto-save to Supabase whenever weeks changes ──
+  // ── Auto-save to Supabase whenever state changes ──
   const saveTimer = useRef(null);
   useEffect(()=>{
     if (dbStatus !== "ok") return;
@@ -811,32 +848,67 @@ export default function App() {
     setSaveStatus("saving");
     saveTimer.current = setTimeout(async ()=>{
       try {
-        await saveState({ weeks, activeWeekId, leaderOverrides, notetakerOverrides });
+        const expected = serverUpdatedAtRef.current;
+        const nextStamp = await saveState(
+          { weeks, activeWeekId, leaderOverrides, notetakerOverrides },
+          expected
+        );
+
+        // Conflict: someone else saved since we last pulled.
+        if (!nextStamp && expected) {
+          setSaveStatus("error");
+          setHasRemoteUpdate(true);
+          return;
+        }
+
+        if (nextStamp) setServerUpdatedAt(nextStamp);
+        setHasRemoteUpdate(false);
         setSaveStatus("saved");
       } catch(e) {
         console.error(e);
         setSaveStatus("error");
       }
     }, 300);
-  }, [weeks, activeWeekId, leaderOverrides, dbStatus]);
+  }, [weeks, activeWeekId, leaderOverrides, notetakerOverrides, dbStatus]);
 
   // ── Poll for changes from other users every 15s ──
   useEffect(()=>{
     if (dbStatus !== "ok") return;
     const interval = setInterval(async ()=>{
       try {
-        const data = await loadState();
+        const loaded = await loadState();
+        const data = loaded ? loaded.data : null;
+        const remoteUpdatedAt = loaded ? loaded.updated_at : null;
+
+        // If server changed since our last pull, mark it.
+        if (remoteUpdatedAt && serverUpdatedAtRef.current && remoteUpdatedAt !== serverUpdatedAtRef.current) {
+          setHasRemoteUpdate(true);
+        }
+
+        // Do not apply remote changes over the meeting notes the user is actively editing.
         const norm = normalizeAndMigrateState(data);
         if (norm && norm.weeks) {
-          setWeeks(norm.weeks);
+          setWeeks(prev => {
+            const editingWeekId = editingWeekIdRef.current;
+            if (!isEditingRef.current || !editingWeekId) return norm.weeks;
+
+            const localEditing = prev.find(w => w.id === editingWeekId);
+            if (!localEditing) return norm.weeks;
+
+            return norm.weeks.map(w => w.id === editingWeekId ? { ...w, meetingNotes: localEditing.meetingNotes } : w);
+          });
           setLeaderOverrides(norm.leaderOverrides || {});
           setNotetakerOverrides(norm.notetakerOverrides || {});
-          // Don't change activeWeekId from polling - let each user control their own view
         }
+
+        if (remoteUpdatedAt) {
+          setServerUpdatedAt(remoteUpdatedAt);
+        }
+        // Don't change activeWeekId from polling - let each user control their own view
       } catch(e) { /* silent */ }
     }, 15000);
     return ()=>clearInterval(interval);
-  }, [dbStatus]);
+  }, [dbStatus, markEditing]);
 
   const activeWeekIdRef = useRef(activeWeekId);
   activeWeekIdRef.current = activeWeekId;
@@ -904,11 +976,11 @@ export default function App() {
   }[saveStatus];
 
   return (
-    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"Helvetica, Arial, sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#fff5f1",fontFamily:"Helvetica, Arial, sans-serif","--ink":"#4C413F","--slate":"#5A6F80","--primary":"#278B9A","--accent":"#E75B64","--coral":"#DE7862","--gold":"#D8AF39","--sand":"#E8C4A2"}}>
       {showModal&&<NewWeekModal currentWeek={activeWeek} onConfirm={handleCreate} onCancel={()=>setShowModal(false)}/>}
 
       {/* ── Header ── */}
-      <div style={{background:"linear-gradient(135deg,#1F3864 0%,#2E75B6 100%)",padding:"22px 28px 0",boxShadow:"0 4px 24px rgba(31,56,100,0.25)"}}>
+      <div style={{background:"linear-gradient(135deg,var(--ink) 0%,var(--primary) 100%)",padding:"22px 28px 0",boxShadow:"0 4px 24px rgba(31,56,100,0.25)"}}>
         <div style={{maxWidth:1400,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:18}}>
             <div>
@@ -917,6 +989,11 @@ export default function App() {
                 {dbStatus==="loading" && <span style={{fontSize:10,background:"rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.7)",borderRadius:4,padding:"1px 7px"}}>Connecting…</span>}
                 {dbStatus==="error"   && <span style={{fontSize:10,background:"#fee2e2",color:"#991b1b",borderRadius:4,padding:"1px 7px"}}>⚠ DB Error — running offline</span>}
                 {dbStatus==="ok"      && <span style={{fontSize:10,color:saveIndicator.color,fontWeight:600}}>{saveIndicator.text}</span>}
+                {hasRemoteUpdate && (
+                  <span style={{fontSize:10,color:\"var(--accent)\",fontWeight:700,marginLeft:10}}>
+                    Someone else updated.
+                  </span>
+                )}
               </div>
               <h1 style={{margin:0,fontSize:24,fontWeight:800,color:"#fff",letterSpacing:"-0.02em"}}>
                 HDSTP – Group 6 Activity Tracker
@@ -941,7 +1018,7 @@ export default function App() {
                           onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
                           onMouseLeave={e=>e.currentTarget.style.background=w.id===activeWeekId?"#eff6ff":"#fff"}
                         >
-                          <span style={{fontSize:13,fontWeight:w.id===activeWeekId?700:400,color:w.id===activeWeekId?"#2E75B6":"#374151"}}>
+                          <span style={{fontSize:13,fontWeight:w.id===activeWeekId?700:400,color:w.id===activeWeekId?"var(--primary)":"#374151"}}>
                             {formatDate(w.date)}
                           </span>
                           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -975,14 +1052,14 @@ export default function App() {
                   )}
                 </div>
                 {isLatest
-                  ? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"#fff",border:"none",borderRadius:8,color:"#1F3864",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
+                  ? <button onClick={()=>{setShowWeekNav(false);setShowModal(true);}} style={{padding:"8px 16px",background:"#fff",border:"none",borderRadius:8,color:"var(--ink)",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 8px rgba(0,0,0,0.12)",fontFamily:"inherit",whiteSpace:"nowrap"}}>＋ New Week</button>
                   : <button onClick={()=>setActiveWeekId(weeks[weeks.length-1].id)} style={{padding:"8px 14px",background:"rgba(255,255,255,0.12)",border:"1.5px solid rgba(255,255,255,0.22)",borderRadius:8,color:"rgba(255,255,255,0.8)",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>← Latest</button>
                 }
               </div>
             )}
           </div>
           <div style={{display:"flex",gap:3}}>
-            {TABS.map(t=>(<button key={t.id} onClick={()=>{setTab(t.id);setShowWeekNav(false);}} style={{padding:"9px 18px",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,borderRadius:"8px 8px 0 0",background:tab===t.id?"#f8fafc":"rgba(255,255,255,0.1)",color:tab===t.id?"#1F3864":"rgba(255,255,255,0.7)",transition:"all 0.15s"}}>{t.label}</button>))}
+            {TABS.map(t=>(<button key={t.id} onClick={()=>{setTab(t.id);setShowWeekNav(false);}} style={{padding:"9px 18px",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,borderRadius:"8px 8px 0 0",background:tab===t.id?"#f8fafc":"rgba(255,255,255,0.1)",color:tab===t.id?"var(--ink)":"rgba(255,255,255,0.7)",transition:"all 0.15s"}}>{t.label}</button>))}
           </div>
         </div>
       </div>
@@ -990,7 +1067,7 @@ export default function App() {
       {/* ── Loading screen ── */}
       {dbStatus==="loading" && (
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh",flexDirection:"column",gap:16}}>
-          <div style={{width:40,height:40,border:"3px solid #e2e8f0",borderTop:"3px solid #2E75B6",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}></div>
+          <div style={{width:40,height:40,border:"3px solid #e2e8f0",borderTop:"3px solid var(--primary)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}></div>
           <p style={{color:"#64748b",fontSize:14}}>Loading tracker data…</p>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
@@ -1003,23 +1080,23 @@ export default function App() {
           {tab==="tracker"&&(
             <div>
               {!isLatest&&(<div style={{background:"#fef3c7",border:"1.5px solid #f59e0b",borderRadius:8,padding:"10px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}><span>⚠️</span><span style={{fontSize:13,color:"#92400e",fontWeight:500}}>Viewing past week ({formatDate(activeWeek.date)}).</span><button onClick={()=>setActiveWeekId(weeks[weeks.length-1].id)} style={{marginLeft:"auto",padding:"5px 12px",background:"#f59e0b",border:"none",borderRadius:6,color:"#fff",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Latest Week</button></div>)}
-              <GoalTable title="SHORT-TERM GOALS — This Week's Tasks" titleBg="#2E75B6" accentBg="#fefce8" rows={activeWeek.shortRows} setRows={setShortRows}/>
-              <GoalTable title="LONG-TERM GOALS — Milestones & Deliverables" titleBg="#1F3864" accentBg="#f0fdf4" rows={activeWeek.longRows} setRows={setLongRows}/>
+              <GoalTable title="SHORT-TERM GOALS — This Week's Tasks" titleBg="var(--primary)" accentBg="#fefce8" rows={activeWeek.shortRows} setRows={setShortRows}/>
+              <GoalTable title="LONG-TERM GOALS — Milestones & Deliverables" titleBg="var(--ink)" accentBg="#f0fdf4" rows={activeWeek.longRows} setRows={setLongRows}/>
             </div>
           )}
 
-          {tab==="notes"&&<MeetingNotesTab week={activeWeek} updWeek={updWeek} leaderOverrides={leaderOverrides} notetakerOverrides={notetakerOverrides}/>}
+          {tab==="notes"&&<MeetingNotesTab week={activeWeek} updWeek={updWeek} leaderOverrides={leaderOverrides} notetakerOverrides={notetakerOverrides} onEdit={()=>markEditing(activeWeekIdRef.current)}/>}
 
           {tab==="rotation"&&(
             <div>
-              <div style={{marginBottom:20}}><h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:"#1F3864"}}>Meeting Rotation</h2><p style={{margin:0,color:"#64748b",fontSize:14}}>Leader rotates A→Z · Notetaker rotates Z→A · Both cycle every 6 weeks · 20 meetings total</p></div>
+              <div style={{marginBottom:20}}><h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:"var(--ink)"}}>Meeting Rotation</h2><p style={{margin:0,color:"#64748b",fontSize:14}}>Leader rotates A→Z · Notetaker rotates Z→A · Both cycle every 6 weeks · 20 meetings total</p></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24}}>
-                {["Leader (A→Z)","Notetaker (Z→A)"].map((label,li)=>(<div key={label} style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:li===0?"#2E75B6":"#7030A0",padding:"12px 16px"}}><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{label}</span></div>{(li===0?LEADERS_ASC:NOTETAKERS_DESC).map((m,i)=>(<div key={m} style={{padding:"8px 16px",fontSize:13,display:"flex",alignItems:"center",gap:10,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><span style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",background:li===0?"#dbeafe":"#ede9fe",color:li===0?"#1e40af":"#5b21b6",flexShrink:0}}>{i+1}</span><span style={{fontWeight:500}}>{m}</span></div>))}</div>))}
+                {["Leader (A→Z)","Notetaker (Z→A)"].map((label,li)=>(<div key={label} style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:li===0?"var(--primary)":"#7030A0",padding:"12px 16px"}}><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{label}</span></div>{(li===0?LEADERS_ASC:NOTETAKERS_DESC).map((m,i)=>(<div key={m} style={{padding:"8px 16px",fontSize:13,display:"flex",alignItems:"center",gap:10,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><span style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",background:li===0?"#dbeafe":"#ede9fe",color:li===0?"#1e40af":"#5b21b6",flexShrink:0}}>{i+1}</span><span style={{fontWeight:500}}>{m}</span></div>))}</div>))}
               </div>
               <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
-                  <thead><tr style={{background:"#1F3864"}}>{["Wk","Date","Meeting Leader","Notetaker"].map(h=>(<th key={h} style={{padding:"11px 14px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"left",letterSpacing:"0.05em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead>
-                  <tbody>{MEETING_DATES.map((dt,wi)=>{const idx=wi%6;const now=new Date();now.setHours(0,0,0,0);const dtc=new Date(dt);dtc.setHours(0,0,0,0);const isThis=dtc.getTime()===now.getTime();const isPast=dtc<now&&!isThis;return(<tr key={wi} style={{background:isThis?"#eff6ff":wi%2===0?"#f8fafc":"#fff",borderLeft:isThis?"3px solid #2E75B6":"3px solid transparent"}}><td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:isPast?"#9ca3af":"#1F3864",borderBottom:"1px solid #f1f5f9"}}>{wi+1}</td><td style={{padding:"10px 14px",fontSize:13,color:isPast?"#9ca3af":"#374151",borderBottom:"1px solid #f1f5f9",whiteSpace:"nowrap"}}>{dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{isThis&&<span style={{marginLeft:8,background:"#2E75B6",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:4,fontWeight:700}}>THIS WEEK</span>}</td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}>
+                  <thead><tr style={{background:"var(--ink)"}}>{["Wk","Date","Meeting Leader","Notetaker"].map(h=>(<th key={h} style={{padding:"11px 14px",fontSize:10,fontWeight:700,color:"#fff",textAlign:"left",letterSpacing:"0.05em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead>
+                  <tbody>{MEETING_DATES.map((dt,wi)=>{const idx=wi%6;const now=new Date();now.setHours(0,0,0,0);const dtc=new Date(dt);dtc.setHours(0,0,0,0);const isThis=dtc.getTime()===now.getTime();const isPast=dtc<now&&!isThis;return(<tr key={wi} style={{background:isThis?"#eff6ff":wi%2===0?"#f8fafc":"#fff",borderLeft:isThis?"3px solid var(--primary)":"3px solid transparent"}}><td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:isPast?"#9ca3af":"var(--ink)",borderBottom:"1px solid #f1f5f9"}}>{wi+1}</td><td style={{padding:"10px 14px",fontSize:13,color:isPast?"#9ca3af":"#374151",borderBottom:"1px solid #f1f5f9",whiteSpace:"nowrap"}}>{dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{isThis&&<span style={{marginLeft:8,background:"var(--primary)",color:"#fff",fontSize:10,padding:"1px 6px",borderRadius:4,fontWeight:700}}>THIS WEEK</span>}</td><td style={{padding:"10px 14px",borderBottom:"1px solid #f1f5f9"}}>
                       <div style={{maxWidth:220}}>
                         <SingleSelect
                           options={LEADERS_ASC}
@@ -1069,10 +1146,10 @@ export default function App() {
 
           {tab==="cover"&&(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-              <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#2E75B6",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Team Members</span></div>{MEMBERS.map((m,i)=>{const col=MEMBER_COLORS[i%MEMBER_COLORS.length];const parts=String(m||"").trim().split(/\s+/);const first=parts[0]||"";const last=parts.length>1?parts[parts.length-1]:"";const initials=(first[0]||"")+(last[0]||"");return(<div key={m} style={{padding:"12px 20px",display:"flex",alignItems:"center",gap:12,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><div style={{width:36,height:36,borderRadius:"50%",background:col.bg,color:col.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{initials}</div><span style={{fontWeight:600,fontSize:14,color:"#1F3864"}}>{m}</span></div>);})}</div>
+              <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--primary)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Team Members</span></div>{MEMBERS.map((m,i)=>{const col=MEMBER_COLORS[i%MEMBER_COLORS.length];const parts=String(m||"").trim().split(/\s+/);const first=parts[0]||"";const last=parts.length>1?parts[parts.length-1]:"";const initials=(first[0]||"")+(last[0]||"");return(<div key={m} style={{padding:"12px 20px",display:"flex",alignItems:"center",gap:12,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><div style={{width:36,height:36,borderRadius:"50%",background:col.bg,color:col.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{initials}</div><span style={{fontWeight:600,fontSize:14,color:"var(--ink)"}}>{m}</span></div>);})}</div>
               <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#1F3864",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Status Guide</span></div>{STATUSES.map((s,i)=>{const c=STATUS_COLORS[s];return(<div key={s} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{s}</span></div>);})}</div>
-                <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#1F3864",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Priority Guide</span></div>{PRIORITIES.map((p,i)=>{const c=PRIORITY_COLORS[p];return(<div key={p} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{p}</span></div>);})}</div>
+                <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--ink)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Status Guide</span></div>{STATUSES.map((s,i)=>{const c=STATUS_COLORS[s];return(<div key={s} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{s}</span></div>);})}</div>
+                <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--ink)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>Priority Guide</span></div>{PRIORITIES.map((p,i)=>{const c=PRIORITY_COLORS[p];return(<div key={p} style={{padding:"10px 20px",display:"flex",alignItems:"center",borderBottom:"1px solid #f1f5f9",background:i%2===0?"#f8fafc":"#fff"}}><span style={{background:c.bg,color:c.text,borderRadius:5,padding:"3px 12px",fontSize:13,fontWeight:700}}>{p}</span></div>);})}</div>
               </div>
               <div style={{gridColumn:"1 / -1",background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                 <div style={{background:"#0f766e",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1081,7 +1158,7 @@ export default function App() {
                 <div style={{padding:"16px 20px",display:"flex",alignItems:"center",gap:14}}>
                   <div style={{width:44,height:44,borderRadius:10,background:"#e6f4ea",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>📂</div>
                   <div>
-                    <div style={{fontSize:14,fontWeight:700,color:"#1F3864",marginBottom:3}}>Group 6 Google Drive</div>
+                    <div style={{fontSize:14,fontWeight:700,color:"var(--ink)",marginBottom:3}}>Group 6 Google Drive</div>
                     <div style={{fontSize:12,color:"#64748b",marginBottom:6}}>Shared folder for uploads, documents, and resources</div>
                     <a href="https://drive.google.com/drive/folders/18dckwmhR_1hFmdJpBiRGep7Ycqgb75_C?usp=sharing" target="_blank" rel="noopener noreferrer"
                       style={{display:"inline-flex",alignItems:"center",gap:6,background:"#0f766e",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:600,textDecoration:"none"}}>
@@ -1091,7 +1168,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{gridColumn:"1 / -1",background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"#2E75B6",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>CRediT Contribution Categories</span></div><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{background:"#f1f5f9"}}><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase",width:220}}>Category</th><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase"}}>Definition</th></tr></thead><tbody>{CATEGORIES.map((cat,i)=>(<tr key={cat} style={{background:i%2===0?"#f8fafc":"#fff"}}><td style={{padding:"12px 16px",fontSize:13,fontWeight:700,color:"#1F3864",borderBottom:"1px solid #f1f5f9",verticalAlign:"top"}}>{cat}</td><td style={{padding:"12px 16px",fontSize:13,color:"#475569",borderBottom:"1px solid #f1f5f9",lineHeight:1.6}}>{CAT_DESC[cat]}</td></tr>))}</tbody></table></div>
+              <div style={{gridColumn:"1 / -1",background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:"var(--primary)",padding:"14px 20px"}}><span style={{color:"#fff",fontWeight:800,fontSize:15}}>CRediT Contribution Categories</span></div><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{background:"#f1f5f9"}}><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase",width:220}}>Category</th><th style={{padding:"10px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748b",letterSpacing:"0.06em",textTransform:"uppercase"}}>Definition</th></tr></thead><tbody>{CATEGORIES.map((cat,i)=>(<tr key={cat} style={{background:i%2===0?"#f8fafc":"#fff"}}><td style={{padding:"12px 16px",fontSize:13,fontWeight:700,color:"var(--ink)",borderBottom:"1px solid #f1f5f9",verticalAlign:"top"}}>{cat}</td><td style={{padding:"12px 16px",fontSize:13,color:"#475569",borderBottom:"1px solid #f1f5f9",lineHeight:1.6}}>{CAT_DESC[cat]}</td></tr>))}</tbody></table></div>
             </div>
           )}
         </div>
