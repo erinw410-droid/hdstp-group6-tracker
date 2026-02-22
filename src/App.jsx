@@ -76,23 +76,6 @@ const THEMES = {
       "--border": "#E7DDD6",
     },
   },
-  ponyoDark: {
-    id: "ponyoDark",
-    name: "Ponyo (Dark)",
-    vars: {
-      "--ink": "#F6F2ED",
-      "--text": "#F6F2ED",
-      "--slate": "#D6CEC6",
-      "--muted": "#D6CEC6",
-      "--primary": "#278B9A",
-      "--accent": "#E75B64",
-      "--coral": "#DE7862",
-      "--gold": "#D8AF39",
-      "--sand": "#E8C4A2",
-      "--surface": "#121110",
-      "--surface2": "#1A1817",
-      "--border": "#2F2B28",
-    },
   },
   classic: {
     id: "classic",
