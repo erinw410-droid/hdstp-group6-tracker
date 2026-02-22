@@ -828,6 +828,17 @@ export default function App() {
   });
 
 
+  // Apply theme vars globally (documentElement) so portal dropdowns inherit them.
+  useEffect(() => {
+    const t = THEMES[themeId] || THEMES.ponyo;
+    try { localStorage.setItem("themeId", t.id); } catch (e) {}
+    const root = document.documentElement;
+    Object.entries(t.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    // Ensure base typography everywhere (including portals)
+    document.body.style.fontFamily = "Helvetica, Arial, sans-serif";
+    document.body.style.background = getComputedStyle(root).getPropertyValue("--surface") || "#fff";
+  }, [themeId]);
+
   // ── Multi-user Tier 1: prevent clobbering while someone is typing ──
   const [serverUpdatedAt, setServerUpdatedAt] = useState(null);
   const serverUpdatedAtRef = useRef(null);
@@ -853,12 +864,6 @@ export default function App() {
     }, 2000);
   }, []);
 
-  // Ensure portal-rendered dropdowns match app typography
-  useEffect(()=>{
-    try {
-      document.body.style.fontFamily = "Helvetica, Arial, sans-serif";
-    } catch(e) {}
-  }, []);
 
   const activeWeek = weeks.find(w=>w.id===activeWeekId)||weeks[weeks.length-1];
   const isLatest   = activeWeek.id===weeks[weeks.length-1].id;
@@ -1174,7 +1179,7 @@ export default function App() {
             <div>
               <div style={{marginBottom:20}}><h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:"var(--ink)"}}>Meeting Rotation</h2><p style={{margin:0,color:"#64748b",fontSize:14}}>Leader rotates A→Z · Notetaker rotates Z→A · Both cycle every 6 weeks · 20 meetings total</p></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24}}>
-                {["Leader (A→Z)","Notetaker (Z→A)"].map((label,li)=>(<div key={label} style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:li===0?"var(--primary)":"#7030A0",padding:"12px 16px"}}><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{label}</span></div>{(li===0?LEADERS_ASC:NOTETAKERS_DESC).map((m,i)=>(<div key={m} style={{padding:"8px 16px",fontSize:13,display:"flex",alignItems:"center",gap:10,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><span style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",background:li===0?"#dbeafe":"#ede9fe",color:li===0?"#1e40af":"#5b21b6",flexShrink:0}}>{i+1}</span><span style={{fontWeight:500}}>{m}</span></div>))}</div>))}
+                {["Leader (A→Z)","Notetaker (Z→A)"].map((label,li)=>(<div key={label} style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}><div style={{background:li===0?"var(--primary)":"var(--accent)",padding:"12px 16px"}}><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{label}</span></div>{(li===0?LEADERS_ASC:NOTETAKERS_DESC).map((m,i)=>(<div key={m} style={{padding:"8px 16px",fontSize:13,display:"flex",alignItems:"center",gap:10,background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}><span style={{width:22,height:22,borderRadius:"50%",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",background:li===0?"#dbeafe":"#ede9fe",color:li===0?"#1e40af":"#5b21b6",flexShrink:0}}>{i+1}</span><span style={{fontWeight:500}}>{m}</span></div>))}</div>))}
               </div>
               <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                 <table style={{width:"100%",borderCollapse:"collapse"}}>
